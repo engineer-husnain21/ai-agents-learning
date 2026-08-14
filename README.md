@@ -80,3 +80,49 @@ get missed entirely. Even in cases where a relevant chunk was retrieved
 (e.g., the Mad Hatter question), its ranking was incorrect because the 
 scoring method only counts word overlap and does not weigh actual 
 relevance or meaning.
+
+
+## Fix: Removing Stop Words
+
+The problem above was clear: common words like "who", "is", "the", "what", "does" 
+appear in almost every chunk, so they inflate the score without telling us 
+anything about which chunk is actually relevant.
+
+To fix this, I added a list of stop words (common filler words) and removed 
+them from both the question and the chunks before scoring — so only 
+meaningful words count toward the match.
+
+### Same 5 Questions, After the Fix
+
+**1. "who is the main character"**
+Still no relevant answer found. Score dropped since "who" and "is" no longer 
+count, but the top chunk still didn't answer the question — the book never 
+directly states who the main character is in one chunk.
+
+**2. "what happens at the end of the story"**
+No real improvement. The word "end" still matched literally ("the fall would 
+never come to an end") instead of meaning "the story's ending".
+
+**3. "where does alice fall"**
+Big improvement. All top 3 chunks were now from the actual falling scene in 
+the book ("she fell very slowly", "down, down, down"). This is the clearest 
+example of the fix working.
+
+**4. "who is the mad hatter"**
+Slight improvement — the word "hatter" showed up in one of the top chunks now, 
+but the results were still not fully accurate.
+
+**5. "what does the white rabbit say"**
+No noticeable improvement. Matches were still weak and unrelated.
+
+### Conclusion
+
+Removing stop words helped in cases where the meaningful word was distinctive 
+enough on its own (like "fall"), but it didn't fix everything. The search 
+still only matches exact words — it has no idea that two different words can 
+mean the same thing. For example, "doctor" and "physician" share zero words, 
+so a chunk about a "physician" would never match a question about a "doctor", 
+even though they mean the same thing. Word matching also can't understand the 
+actual intent behind a question, only whether the same characters appear. 
+This is exactly the kind of problem embeddings are designed to solve — they 
+represent meaning, not just exact words.

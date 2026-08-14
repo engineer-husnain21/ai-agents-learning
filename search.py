@@ -8,10 +8,22 @@ import json        # standard library: to load chunks.json
 import string       # standard library: gives us a list of punctuation characters
 
 
+# STOP WORDS: common words that appear almost everywhere and tell us nothing
+# about which chunk is special. We ignore these when scoring.
+STOP_WORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "of", "in", "on", "at", "to", "for", "and", "or", "but", "with",
+    "as", "by", "it", "this", "that", "these", "those", "i", "you",
+    "he", "she", "we", "they", "do", "does", "did", "what", "who",
+    "where", "when", "why", "how", "not", "no", "so", "if", "then",
+    "than", "his", "her", "its", "their", "my", "your", "our"
+}
+
+
 def clean_and_split(text):
     """
     Takes a piece of text, lowercases it, removes punctuation,
-    and splits it into a list (well, a set) of words.
+    splits it into words, and removes stop words.
     "Weather," and "weather" become the same word after this.
     """
     text = text.lower()
@@ -19,6 +31,7 @@ def clean_and_split(text):
     for punct in string.punctuation:
         text = text.replace(punct, "")
     words = text.split()   # splits on whitespace
+    words = [w for w in words if w not in STOP_WORDS]   # drop stop words
     return set(words)       # set = no duplicates, and fast to compare
 
 
@@ -42,10 +55,10 @@ def main():
     with open(args.chunks_file, "r", encoding="utf-8") as f:
         chunks = json.load(f)
 
-    # 3.  Extract the key words from the cleaned-up question.
+    # 3. Question ko clean karke words nikaalo
     question_words = clean_and_split(args.question)
 
-    # 4. # Assign a score to each chunk.
+    # 4. Har chunk ko score do
     scored_chunks = []
     for chunk in chunks:
         chunk_words = clean_and_split(chunk["text"])
@@ -56,7 +69,7 @@ def main():
             "text": chunk["text"]
         })
 
-    # 5. Sort by score (highest score first)
+    # 5. Score ke hisaab se sort karo (sabse zyada score pehle)
     scored_chunks.sort(key=lambda c: c["score"], reverse=True)
 
     # 6. Top 3 print karo
