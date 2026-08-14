@@ -13,8 +13,8 @@ def chunk_text(text, size, overlap):
     size    = how many characters per chunk
     overlap = how many characters repeat from the end of the previous chunk
     """
-    # safety net: agar overlap >= size ho to infinite loop ban jayega, isliye
-    # ye check kaam shuru hone se pehle hi ho jana chahiye, har iteration mein nahi
+    # Safety check: if overlap >= size, it will cause an infinite loop,
+    # so this check should be performed before the process starts, not on every iteration.
     if size - overlap <= 0:
         raise ValueError("overlap must be smaller than size")
 
@@ -39,21 +39,21 @@ def chunk_text(text, size, overlap):
 
 
 def main():
-    # 1. Command-line arguments define karo
+    # 1. Define the Command-line arguments 
     parser = argparse.ArgumentParser(description="Split a text file into overlapping chunks.")
     parser.add_argument("filename", help="path to a .txt file")
     parser.add_argument("--size", type=int, required=True, help="characters per chunk")
     parser.add_argument("--overlap", type=int, required=True, help="overlapping characters between chunks")
     args = parser.parse_args()
 
-    # 2. File read karo
+    # 2. Read the File
     with open(args.filename, "r", encoding="utf-8") as f:
         text = f.read()
 
-    # 3. Chunk karo
+    # 3. Do the Chunk
     chunks = chunk_text(text, args.size, args.overlap)
 
-    # 4. Summary print karo
+    # 4. Print the Summary
     print(f"Total characters: {len(text)}")
     print(f"Number of chunks: {len(chunks)}")
     print()
@@ -64,7 +64,7 @@ def main():
         print("--- Chunk 2 ---")
         print(chunks[1]["text"])
 
-    # 5. JSON mein save karo
+    # 5. Save to JSON
     with open("chunks.json", "w", encoding="utf-8") as f:
         json.dump(chunks, f, indent=2, ensure_ascii=False)
 
