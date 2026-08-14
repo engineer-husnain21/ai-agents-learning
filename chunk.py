@@ -13,6 +13,11 @@ def chunk_text(text, size, overlap):
     size    = how many characters per chunk
     overlap = how many characters repeat from the end of the previous chunk
     """
+    # safety net: agar overlap >= size ho to infinite loop ban jayega, isliye
+    # ye check kaam shuru hone se pehle hi ho jana chahiye, har iteration mein nahi
+    if size - overlap <= 0:
+        raise ValueError("overlap must be smaller than size")
+
     chunks = []
     start = 0
     chunk_id = 0
@@ -29,10 +34,6 @@ def chunk_text(text, size, overlap):
 
         chunk_id += 1
         start += (size - overlap)            # move forward, but "step back" by overlap
-
-        # safety net: agar overlap >= size ho jaye to infinite loop na ho
-        if size - overlap <= 0:
-            raise ValueError("overlap must be smaller than size")
 
     return chunks
 
