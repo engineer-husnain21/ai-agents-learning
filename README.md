@@ -126,3 +126,49 @@ even though they mean the same thing. Word matching also can't understand the
 actual intent behind a question, only whether the same characters appear. 
 This is exactly the kind of problem embeddings are designed to solve — they 
 represent meaning, not just exact words.
+
+
+
+
+## Task 3 - Semantic Search with Embeddings
+
+I built embed.py, which converts every chunk into a vector using Azure OpenAI's text-embedding-3-small model, and saved them to embeddings.json.
+
+Run summary: 205 chunks embedded, 51,477 tokens used, total cost $0.001030.
+
+Then I built search_semantic.py, which embeds the question and compares it to every chunk using cosine similarity (written by hand, no numpy).
+
+### Same 5 Questions: Word Match (Task 2) vs Embeddings (Task 3)
+
+Q1. who is alice?
+Task 2: Top chunk was the title page, matched only on the word "alice".
+Task 3: Still the title page ranked highest, but score is now a meaningful similarity (0.4976) instead of a raw word count. No real improvement here since the book never directly "defines" alice in one chunk.
+
+Q2. what happens at the end of the story?
+Task 2: Top chunk was from the beginning of the book, matched on the literal word "end".
+Task 3: Different chunks entirely (about the Mouse's story), still not the actual ending, but scores are much lower (0.35-0.36) - the model is honestly showing low confidence instead of falsely matching on the word "end".
+
+Q3. where does alice fall?
+Task 2: Big improvement already after removing stop words - top chunks were the correct falling scene.
+Task 3: Even better - Rank 1 has the highest score I saw across all questions (0.6179), and it's the exact right scene. Embeddings understood "fall" strongly here.
+
+4. who is the mad hatter?
+Task 2: Slight improvement, "hatter" appeared in one top chunk.
+Task 3: Rank 1 now directly mentions "the Hatter" with a solid score (0.5343) - better than task 2's ranking.
+
+5. what does the white rabbit say?
+
+Task 2: No relevant answer, weak matches.
+Task 3: Rank 2 and 3 are actually about the Rabbit (score 0.5272 and 0.5225) - Rank 2 shows Alice hearing the Rabbit coming, Rank 3 shows the Rabbit's voice and Alice responding. This is a real improvement over task 2, though Rank 1 (score 0.5403) is unrelated - it's about the Queen, not the Rabbit.
+
+### Which questions improved and why?
+
+"Where does alice fall" and "who is the mad hatter" improved the most, because embeddings understand meaning, not just exact words - so words like "fall" and "hatter" pulled in chunks that were actually about that topic, ranked with real confidence scores.
+
+### Did any get worse or stay bad?
+
+"Who is the main character" and "what happens at the end of the story" still don't return a good answer. This isn't really a search problem - no single chunk in the book directly states "the main character is Alice" or clearly marks "this is the ending." Embeddings can only find similar meaning if that meaning actually exists in some chunk.
+
+### Why embed all chunks once, but the question every time?
+
+The chunks don't change - the book stays the same, so their embeddings only need to be calculated once and reused for every future question. The question is different every time someone searches, so it has to be embedded fresh each time. If we did it the other way around (re-embedding all 205 chunks on every search instead of just the question), it would cost roughly 205x more per search and be much slower, for no benefit since the chunks never changed.
