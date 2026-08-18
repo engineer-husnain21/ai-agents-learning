@@ -172,3 +172,75 @@ Task 3: Rank 2 and 3 are actually about the Rabbit (score 0.5272 and 0.5225) - R
 ### Why embed all chunks once, but the question every time?
 
 The chunks don't change - the book stays the same, so their embeddings only need to be calculated once and reused for every future question. The question is different every time someone searches, so it has to be embedded fresh each time. If we did it the other way around (re-embedding all 205 chunks on every search instead of just the question), it would cost roughly 205x more per search and be much slower, for no benefit since the chunks never changed.
+
+
+
+## Task 4 - Full RAG Loop with Grounded Answers
+
+I built answer.py, which combines everything from tasks 1-3: it retrieves the top 3 chunks using embeddings, checks a similarity threshold before calling any chat model, and if the score passes, sends gpt-5-mini a prompt with the chunks, the question, and strict grounding rules (answer only from the chunks, say so explicitly if the answer isn't there, never use outside knowledge).
+
+### Choosing the threshold
+
+I ran my 5 Alice questions plus 2 unanswerable questions (football scores, weather) and looked at the best similarity score for each:
+
+| Question | Best Score | Should Answer? |
+| where does alice fall | 0.6179 | Yes |
+| who is the mad hatter | 0.5343 | Yes |
+| what does the white rabbit say | 0.5403 | Yes |
+| who is alice | 0.4976 | Yes |
+| what happens at the end of the story | 0.3579 | No (no chunk answers it) |
+| what was the football score yesterday | 0.1623 | No |
+| what is the weather today | 0.1570 | No |
+
+There's a clear gap between the real questions (0.49-0.62) and the unanswerable ones (0.16-0.36). I set the threshold at **0.45**, right in the middle of that gap, so it catches the unanswerable questions without blocking real ones.
+
+### Running all 5 Alice questions through answer.py
+
+Q1. where does alice fall? 
+- Score 0.6179, passed the gate. 
+Answer: "She fell upon a heap of sticks and dry leaves." This is correct and matches the book.
+
+Q2. who is alice? 
+- Score 0.4976, passed the gate. 
+Answer described Alice correctly based on the retrieved chunks (sitting by her sister, entering the Rabbit's house, etc.) - a real improvement over tasks 2 and 3, since the chat model could combine multiple chunks into one coherent answer.
+
+Q3. who is the mad hatter? 
+- Score 0.5343, passed. 
+Correct answer about the Hatter and the Cheshire Cat's comment.
+
+Q4. what does the white rabbit say? 
+- Score 0.5403, passed. 
+The answer quoted a line from the retrieved chunks, but on checking the book, this line is more closely tied to another scene than to the Rabbit specifically - so retrieval pulled a real quote, but not perfectly matched to "the Rabbit says" as the question implied.
+
+Q5. what happens at the end of the story? 
+- Score 0.3579, correctly blocked by the gate. No chat model was called, cost was $0.
+
+### Unanswerable questions
+
+Both "what was the football score yesterday" (0.1623) and "what is the weather today" (0.1570) were correctly blocked by the threshold gate before any chat model call was made - cost was $0 for both.
+
+### Honesty test
+
+I asked "what is the name of alice's cat" - a fact that's in the book but not mentioned in every chunk. Score was 0.5579, passed the gate, and the model correctly answered "Dinah" with the right sources. This shows that when retrieval finds the right chunk, even for a less-common fact, the grounded answer is accurate.
+
+### Lying test
+
+I removed the grounding rules and gave the model 3 random, unrelated chunks along with the football question. Instead of making up a fake score, gpt-5-mini honestly said it doesn't have real-time internet access and asked me to clarify which match I meant. It did not hallucinate an answer in this case - but this isn't guaranteed for every question. Without the grounding rule, if I'd asked something the model actually "knows" from its training data, it likely would have answered from that training knowledge instead of admitting the context didn't contain the answer. That's exactly the risk the grounding rule protects against - it forces the model to rely only on the document, not what it might know generally.
+
+### Reflections
+
+1. Why refuse at the threshold BEFORE calling the chat model?
+
+Two reasons: money and trust. Money - calling gpt-5-mini costs tokens even if the answer will be wrong or "I don't know," so blocking early with a free similarity check saves cost on every question that was never going to be answerable anyway. Trust - if we let the model see irrelevant chunks and decide on its own, there's a chance it ignores the rule and answers from its training data anyway, which would look correct but not actually be grounded in the document. Filtering before the call removes that risk entirely for the clearest cases.
+
+2. "Retrieval found nothing" vs "the book doesn't contain it" - same or different?
+
+They're different. "Retrieval found nothing relevant" means the similarity scores were low, so my search failed to find matching text. "The book doesn't contain it" means even a perfect search wouldn't find an answer, because the information genuinely isn't in the document anywhere. I can't fully tell them apart from the score alone - a low score usually means retrieval failed, but it could also mean the answer just isn't there. The only way to really tell the difference is manually checking the book myself, which is what I did for "what happens at the end of the story" - the score was low because no chunk actually describes an ending, not because my search was bad.
+
+3. Which costs more - embeddings or the chat answer?
+
+The chat answer costs far more per question. Embedding the question uses very few tokens and costs close to $0. The chat call costs $0.0005-$0.0016 per question because it has to process the full context (3 chunks of text) as input tokens, plus generate the answer as output tokens, and output tokens are priced 8x higher than input tokens ($2.00 vs $0.25 per 1M). This is exactly why the threshold gate matters - it avoids the more expensive chat call whenever retrieval already shows there's nothing worth answering.
+
+
+**Second lying test attempt:**
+I also tried asking "who was pakistan's first international cricket team captain" (a historical fact, unlike the football score which needs real-time data). This time, without the grounding rules, the model confidently answered "Abdul Hafeez Kardar (A. H. Kardar)" - even though the context chunks were from Alice in Wonderland and had nothing to do with cricket. This proves the exact risk the grounding rule protects against: the model used its own training knowledge instead of admitting the provided context didn't contain the answer. With the grounding rules in place (as in answer.py), this same question would correctly return "The document does not contain an answer to this question."
