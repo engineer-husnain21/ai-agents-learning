@@ -48,7 +48,7 @@ class AskRequest(BaseModel):
     question: str
 
 
-last_chunks_by_session = {}
+CLEARLY_UNRELATED_CUTOFF = 0.30
 
 
 @app.post("/ask")
@@ -58,36 +58,45 @@ async def ask(request: AskRequest):
 
     history = get_history(request.session_id, limit=HISTORY_LENGTH)
 
-    if history:
-        last_turn = history[-1]
-        retrieval_query = f"{last_turn['question']} {last_turn['answer']} {request.question}"
-    else:
-        retrieval_query = request.question
-
-    top_chunks, embed_tokens, embed_cost = get_top_chunks(
-        retrieval_query, state["embeddings"], state["chunks"]
+    raw_chunks, raw_tokens, raw_cost = get_top_chunks(
+        request.question, state["embeddings"], state["chunks"]
     )
+    raw_score = raw_chunks[0]["score"] if raw_chunks else 0
 
-    gate_passed = passes_gate(top_chunks)
-
-    if not gate_passed and history and request.session_id in last_chunks_by_session:
-        top_chunks = last_chunks_by_session[request.session_id]
-        gate_passed = True
-
-    if not gate_passed:
+    if raw_score < CLEARLY_UNRELATED_CUTOFF:
         answer_text = "The document does not contain an answer to this question."
         save_turn(request.session_id, request.question, answer_text)
         return {
             "answer": answer_text,
             "sources": [],
-            "cost": round(embed_cost, 6)
+            "cost": round(raw_cost, 6)
         }
+
+    if passes_gate(raw_chunks):
+        top_chunks, embed_cost = raw_chunks, raw_cost
+    else:
+        if history:
+            last_turn = history[-1]
+            retrieval_query = f"{last_turn['question']} {last_turn['answer']} {request.question}"
+            top_chunks, embed_tokens, embed_cost = get_top_chunks(
+                retrieval_query, state["embeddings"], state["chunks"]
+            )
+        else:
+            top_chunks, embed_cost = raw_chunks, raw_cost
+
+        if not passes_gate(top_chunks):
+            answer_text = "The document does not contain an answer to this question."
+            save_turn(request.session_id, request.question, answer_text)
+            return {
+                "answer": answer_text,
+                "sources": [],
+                "cost": round(embed_cost, 6)
+            }
 
     answer_text, chat_cost = generate_answer(request.question, top_chunks, history)
     total_cost = embed_cost + chat_cost
 
     save_turn(request.session_id, request.question, answer_text)
-    last_chunks_by_session[request.session_id] = top_chunks
 
     return {
         "answer": answer_text,
