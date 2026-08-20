@@ -3,6 +3,9 @@ main.py — FastAPI routes: /upload, /ask, /history/{session_id}
 Run with: uvicorn app.main:app --reload
 """
 
+import json
+import os
+
 from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
 
@@ -12,6 +15,10 @@ from app.answering import generate_answer
 from app.memory import init_db, save_turn, get_history
 from app.config import HISTORY_LENGTH
 
+STORE_DIR = "store"
+CHUNKS_PATH = os.path.join(STORE_DIR, "chunks.json")
+EMBEDDINGS_PATH = os.path.join(STORE_DIR, "embeddings.json")
+
 app = FastAPI()
 
 state = {
@@ -19,11 +26,39 @@ state = {
     "embeddings": []
 }
 
+
+def save_book(chunks, embeddings):
+    """Writes the current book to disk, replacing any previous files."""
+    os.makedirs(STORE_DIR, exist_ok=True)
+    for path in (CHUNKS_PATH, EMBEDDINGS_PATH):
+        if os.path.exists(path):
+            os.remove(path)
+    with open(CHUNKS_PATH, "w", encoding="utf-8") as f:
+        json.dump(chunks, f)
+    with open(EMBEDDINGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(embeddings, f)
+
+
+def load_book():
+    """Loads the last uploaded book from disk, if it exists."""
+    if not os.path.exists(CHUNKS_PATH) or not os.path.exists(EMBEDDINGS_PATH):
+        return [], []
+    with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+        chunks = json.load(f)
+    with open(EMBEDDINGS_PATH, "r", encoding="utf-8") as f:
+        embeddings = json.load(f)
+    return chunks, embeddings
+
+
 init_db()
+state["chunks"], state["embeddings"] = load_book()
 
 
 @app.post("/upload")
 async def upload(file: UploadFile):
+    if not file.filename or not file.filename.lower().endswith(".txt"):
+        return {"error": "Only .txt files are accepted."}
+
     raw_bytes = await file.read()
     text = raw_bytes.decode("utf-8")
 
@@ -34,8 +69,10 @@ async def upload(file: UploadFile):
         vector, _ = embed_text(chunk["text"])
         embeddings.append({"chunk_id": chunk["chunk_id"], "embedding": vector})
 
+    # Replace RAM first so no request can still see the old book, then replace disk.
     state["chunks"] = chunks
     state["embeddings"] = embeddings
+    save_book(chunks, embeddings)
 
     return {
         "message": f"Uploaded and processed '{file.filename}'",
