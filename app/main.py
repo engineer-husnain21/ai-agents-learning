@@ -14,15 +14,12 @@ from app.config import HISTORY_LENGTH
 
 app = FastAPI()
 
-# ----- STATE -----
-# Lives in memory (RAM) for the current book. Wiped completely on every
-# new /upload, so no trace of the old book survives.
 state = {
     "chunks": [],
     "embeddings": []
 }
 
-init_db()  # SQLite table is created once on startup (this part survives restarts)
+init_db()
 
 
 @app.post("/upload")
@@ -37,7 +34,6 @@ async def upload(file: UploadFile):
         vector, _ = embed_text(chunk["text"])
         embeddings.append({"chunk_id": chunk["chunk_id"], "embedding": vector})
 
-    # completely replace old state — nothing of the old book survives
     state["chunks"] = chunks
     state["embeddings"] = embeddings
 
@@ -52,16 +48,33 @@ class AskRequest(BaseModel):
     question: str
 
 
+last_chunks_by_session = {}
+
+
 @app.post("/ask")
 async def ask(request: AskRequest):
     if not state["chunks"]:
         return {"error": "No document has been uploaded yet. Use /upload first."}
 
+    history = get_history(request.session_id, limit=HISTORY_LENGTH)
+
+    if history:
+        last_turn = history[-1]
+        retrieval_query = f"{last_turn['question']} {last_turn['answer']} {request.question}"
+    else:
+        retrieval_query = request.question
+
     top_chunks, embed_tokens, embed_cost = get_top_chunks(
-        request.question, state["embeddings"], state["chunks"]
+        retrieval_query, state["embeddings"], state["chunks"]
     )
 
-    if not passes_gate(top_chunks):
+    gate_passed = passes_gate(top_chunks)
+
+    if not gate_passed and history and request.session_id in last_chunks_by_session:
+        top_chunks = last_chunks_by_session[request.session_id]
+        gate_passed = True
+
+    if not gate_passed:
         answer_text = "The document does not contain an answer to this question."
         save_turn(request.session_id, request.question, answer_text)
         return {
@@ -70,12 +83,11 @@ async def ask(request: AskRequest):
             "cost": round(embed_cost, 6)
         }
 
-    history = get_history(request.session_id, limit=HISTORY_LENGTH)
-
     answer_text, chat_cost = generate_answer(request.question, top_chunks, history)
     total_cost = embed_cost + chat_cost
 
     save_turn(request.session_id, request.question, answer_text)
+    last_chunks_by_session[request.session_id] = top_chunks
 
     return {
         "answer": answer_text,
