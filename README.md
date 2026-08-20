@@ -301,3 +301,22 @@ Uploaded `book_b.txt` (a short space-voyage story, 2 chunks) on the same running
 `where does alice fall` → refused, sources `[]`, cost `$0.0`. No Alice names, quotes, or chunk ids from the old book.
 
 `Who is Captain Mira Solen?` → `She commanded the research ship Red Comet on a five-year survey of the outer planets.` Sources from the new file only (chunks 0 and 1).
+
+
+
+
+
+
+## Task 5 - Making it a Service
+
+### Refactor
+I moved the repeated code (Azure client setup, cosine similarity) into a shared `app/` package: config.py, chunking.py, retrieval.py, answering.py, memory.py, main.py. I kept the old task 1-4 scripts (chunk.py, search.py, embed.py, search_semantic.py, answer.py, lying_test.py) in the repo as-is, since they document the step-by-step progress and were already reviewed - the new work happens in app/ now.
+
+### Memory vs disk
+The current book's chunks and embeddings live in memory (a Python dict in main.py) - this is fast but disappears if the server restarts, and a new /upload completely overwrites it so no old book data survives. Conversation history lives in SQLite (memory.db), a file on disk - this is why history survives a server restart, unlike the book data. Every /ask call also fetches the recent history from disk before answering, then saves the new turn back to disk immediately after.
+
+### History length decision
+I send the last 3 exchanges to the model as context. I chose 3 because it's enough for natural follow-ups ("who did she meet after that?") without growing the prompt (and cost) too much on long conversations. More history means more input tokens on every single question, even ones that don't need it.
+
+### One thing I'd worry about with 100 concurrent users
+The book state is stored in one shared Python dictionary. If 100 people used this at once, one person's /upload would wipe out the book for everyone else currently using it - there's no per-user or per-session isolation for the uploaded document, only for conversation history. This would need to become per-session state instead of one global state.
