@@ -3,3 +3,4 @@ __pycache__/
 store/
 memory.db
 ask.json
+embeddings.json

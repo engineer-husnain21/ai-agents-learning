@@ -244,3 +244,60 @@ The chat answer costs far more per question. Embedding the question uses very fe
 
 **Second lying test attempt:**
 I also tried asking "who was pakistan's first international cricket team captain" (a historical fact, unlike the football score which needs real-time data). This time, without the grounding rules, the model confidently answered "Abdul Hafeez Kardar (A. H. Kardar)" - even though the context chunks were from Alice in Wonderland and had nothing to do with cricket. This proves the exact risk the grounding rule protects against: the model used its own training knowledge instead of admitting the provided context didn't contain the answer. With the grounding rules in place (as in answer.py), this same question would correctly return "The document does not contain an answer to this question."
+
+
+## Task 5 - RAG as a FastAPI service
+
+The pipeline is now a small HTTP service in the `app/` package. Old terminal scripts (`chunk.py`, `embed.py`, `search.py`, `search_semantic.py`, `answer.py`) are kept so the earlier experiments can still be run the old way. The service does not import them — repeated Azure-client setup and cosine similarity now live in one place (`app/config.py` and `app/retrieval.py`).
+
+### Run it
+
+```
+pip install fastapi uvicorn
+uvicorn app.main:app --reload
+```
+
+- `POST /upload` — multipart `.txt` file. Chunks, embeds, replaces the current book.
+- `POST /ask` — JSON `{ "session_id": "...", "question": "..." }`. Retrieve → threshold gate → grounded answer with citations and cost.
+- `GET /history/{session_id}` — full conversation for that session.
+- If `/ask` is called before any upload (and nothing is on disk from a previous run), it returns an error and does not call the model.
+
+### Memory vs disk (what /upload does)
+
+The live book (chunks + embeddings) sits in RAM in a `state` dict so every `/ask` can search without re-reading files. The same book is also written to `store/chunks.json` and `store/embeddings.json`, so a server restart can reload it without paying to embed the book again. Conversation history is not the RAM copy — SQLite (`memory.db`) is the source of truth, which is why killing the process does not wipe sessions. On `/upload`, RAM is replaced with the new chunks and embeddings first, then the old store files are deleted and rewritten, so nothing of the previous book remains in memory or on disk. History rows in SQLite are left alone because they belong to a `session_id`, not to a particular book.
+
+### History length
+
+I send the last **3** exchanges (`HISTORY_LENGTH = 3`) into the chat prompt, and I also use the last turn to rewrite follow-up questions for retrieval (so "who did she meet after that?" can find the White Rabbit). Three turns is enough for pronouns and "after that" without sending a whole afternoon of chat. Each extra turn is extra input tokens on the chat call; at $0.25 per 1M input tokens, 3 short turns cost a fraction of a cent, while sending unlimited history would make every later question more expensive for no real gain.
+
+### If 100 people used this at once
+
+I would worry most that there is only one book for the whole process. One person's `/upload` replaces the document everyone else is asking about. Upload also embeds chunks one by one on that request, so a large file would stall other users until it finished.
+
+### Demo results (one server process, no restart except where noted)
+
+**1. Upload Alice (`book.txt`), then two questions**
+
+Upload: `{"message":"Uploaded and processed 'book.txt'","chunks_created":210}`
+
+`where does alice fall` → `She fell down a very deep well.` Sources: chunks 4, 5, 8. Cost ~$0.00051.
+
+`who did she meet after that?` → `The White Rabbit.` (only works because history is in the prompt / retrieval query). Cost ~$0.000886.
+
+**2. Unanswerable question**
+
+`what is the weather today` → `The document does not contain an answer to this question.` Sources `[]`, cost `$0.0` (gate refused before the chat model).
+
+**3. Kill the server, restart, same session**
+
+`GET /history/demo_task5` still returned all three turns from SQLite.
+
+Without re-uploading, `what did she fall into?` answered `a very deep well.` — the book reloaded from `store/`, and `she` still resolved from history.
+
+**4. Upload a different book, no restart**
+
+Uploaded `book_b.txt` (a short space-voyage story, 2 chunks) on the same running server.
+
+`where does alice fall` → refused, sources `[]`, cost `$0.0`. No Alice names, quotes, or chunk ids from the old book.
+
+`Who is Captain Mira Solen?` → `She commanded the research ship Red Comet on a five-year survey of the outer planets.` Sources from the new file only (chunks 0 and 1).
