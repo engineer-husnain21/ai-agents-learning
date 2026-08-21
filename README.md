@@ -320,3 +320,39 @@ I send the last 3 exchanges to the model as context. I chose 3 because it's enou
 
 ### One thing I'd worry about with 100 concurrent users
 The book state is stored in one shared Python dictionary. If 100 people used this at once, one person's /upload would wipe out the book for everyone else currently using it - there's no per-user or per-session isolation for the uploaded document, only for conversation history. This would need to become per-session state instead of one global state.
+
+
+
+
+## Task 5.5 - Query Rewriting
+
+The blending approach from Task 5 mixed old history text directly into the embedding, so the gate couldn't tell if a high score came from the actual question or from leftover history. I replaced it with proper query rewriting: before anything else touches the question, I call gpt-5-mini with the conversation history and ask it to rewrite the question into a standalone one - resolving pronouns like "she" and "that" - without answering it or adding new information.
+
+I deleted the old blending code and the two-stage raw/combined check from Task 5 entirely - the rewrite step replaces both.
+
+### Follow-up test
+Original: "who did she meet after that?"
+Rewritten: "Who did Alice meet after she fell down a very deep well and came to rest upon a heap of sticks and dry leaves?"
+Gate score: 0.6103 - Answer: "The White Rabbit." Correct, and the rewrite cleanly resolved "she" and "that" using only the prior exchange.
+
+### Weather test (unanswerable)
+Original: "what is the weather today"
+Rewritten: "what is the weather today" (unchanged - already standalone, no references to resolve)
+Gate score: 0.1781 - correctly refused. This confirms the gate now sees a clean question with zero history contamination, unlike the Task 5 bug where old Alice history falsely dragged an unrelated question's score up.
+
+### Pipeline trace
+Original question: "who did she meet after that?"
+↓ Rewrite (using history: "where does alice fall" → "She falls down a well...")
+Rewritten question: "Who did Alice meet after she fell down a very deep well and came to rest upon a heap of sticks and dry leaves?"
+↓ Embed the rewritten question
+Gate score: 0.6103 (passes)
+↓ Retrieve top 3 chunks
+↓ Generate answer
+Answer: "The White Rabbit."
+
+### Cost: before vs after
+Before (Task 5 blending): a single /ask call cost around $0.0008-0.0011 (embedding + chat only).
+After (with rewrite): the follow-up question cost $0.001763 - the extra ~$0.0007-0.001 is the one small rewrite call (gpt-5-mini reading the question + history and outputting a rewritten question). A standalone question with no history (like "where does alice fall") costs the same as before ($0.000662), since rewrite_question() returns immediately with zero extra cost when there's no history to resolve.
+
+### What I store in memory
+I save the user's ORIGINAL question to history, not the rewrite. The rewrite is an internal retrieval detail - if I saved the rewritten version instead, the conversation history returned by /history would show questions the user never actually typed, which would be confusing and dishonest about what really happened in the conversation.
