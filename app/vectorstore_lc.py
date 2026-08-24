@@ -6,6 +6,8 @@ framework only retrieves; our code still decides if it's good enough.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import shutil
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_chroma import Chroma

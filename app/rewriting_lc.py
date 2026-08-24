@@ -4,6 +4,8 @@ using LangChain's AzureChatOpenAI instead of a raw openai client call.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from langchain_openai import AzureChatOpenAI
 
 chat_model = AzureChatOpenAI(
