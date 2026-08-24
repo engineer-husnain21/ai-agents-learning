@@ -1,52 +1,100 @@
 """
-answering_lc.py — grounded answer using a LangChain PromptTemplate with
-the SAME rules as app/answering.py (task 4), and AzureChatOpenAI instead
-of a raw openai client call.
+main_lc.py — SAME contract as app/main.py (task 5.5): /upload, /ask, /history.
+Internals rebuilt with LangChain: RecursiveCharacterTextSplitter, Chroma,
+AzureOpenAIEmbeddings, AzureChatOpenAI. Threshold gate, refusal messages,
+and SQLite memory are still OURS — the framework doesn't decide those.
+Run with: uvicorn app.main_lc:app --reload --port 8002
 """
 
-from langchain_core.prompts import PromptTemplate
-from app.rewriting_lc import chat_model  # reuse the same chat model instance
+from fastapi import FastAPI, UploadFile
+from pydantic import BaseModel
 
-ANSWER_PROMPT = PromptTemplate.from_template("""You must answer ONLY using the context chunks below.
-Rules:
-- Answer only from the provided chunks.
-- If the chunks do not contain the answer, say exactly: "The document does not contain an answer to this question."
-- Never use outside knowledge, even if you know the real answer.
-- Use the previous conversation only to understand what the current question refers to (e.g. "she", "it"), not as a source of facts.
-{history_text}
+from app.chunking_lc import chunk_text_lc
+from app.vectorstore_lc import build_vectorstore, get_top_chunks_lc
+from app.rewriting_lc import rewrite_question_lc
+from app.answering_lc import generate_answer_lc
+from app.retrieval import passes_gate  # our gate logic, unchanged
+from app.memory import init_db, save_turn, get_history
+from app.config import HISTORY_LENGTH
 
-Context chunks:
-{context}
+app = FastAPI()
 
-Question: {question}
+state = {
+    "vectorstore": None
+}
 
-Answer:""")
+init_db()
 
 
-def generate_answer_lc(question, top_chunks, history=None):
-    context = "\n\n".join(
-        f"[Chunk {c['chunk_id']}]: {c['text']}" for c in top_chunks
-    )
+@app.post("/upload")
+async def upload(file: UploadFile):
+    raw_bytes = await file.read()
+    text = raw_bytes.decode("utf-8")
 
-    history_text = ""
-    if history:
-        history_lines = []
-        for turn in history:
-            history_lines.append(f"Q: {turn['question']}\nA: {turn['answer']}")
-        history_text = "\n\nPrevious conversation:\n" + "\n\n".join(history_lines)
+    chunks = chunk_text_lc(text)
+    state["vectorstore"] = build_vectorstore(chunks)
 
-    prompt = ANSWER_PROMPT.format(
-        context=context, question=question, history_text=history_text
-    )
+    return {
+        "message": f"Uploaded and processed '{file.filename}'",
+        "chunks_created": len(chunks)
+    }
 
-    response = chat_model.invoke(prompt)
 
-    answer_text = response.content
-    input_tokens = response.usage_metadata["input_tokens"]
-    output_tokens = response.usage_metadata["output_tokens"]
+class AskRequest(BaseModel):
+    session_id: str
+    question: str
 
+
+@app.post("/ask")
+async def ask(request: AskRequest):
+    if state["vectorstore"] is None:
+        return {"error": "No document has been uploaded yet. Use /upload first."}
+
+    history = get_history(request.session_id, limit=HISTORY_LENGTH)
+
+    # STEP 1: rewrite (only if history exists) — same rules as task 5.5
+    rewritten_question, rw_in, rw_out = rewrite_question_lc(request.question, history)
     from app.config import CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M
-    chat_cost = (input_tokens / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
-    chat_cost += (output_tokens / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
+    rewrite_cost = (rw_in / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
+    rewrite_cost += (rw_out / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
 
-    return answer_text, chat_cost
+    # STEP 2: retrieve via Chroma. STEP 3: OUR gate, unchanged.
+    top_chunks = get_top_chunks_lc(state["vectorstore"], rewritten_question)
+
+    from app.config import LC_SIMILARITY_THRESHOLD
+    gate_passed = top_chunks and top_chunks[0]["score"] >= LC_SIMILARITY_THRESHOLD
+
+    if not gate_passed:
+        answer_text = "The document does not contain an answer to this question."
+        save_turn(request.session_id, request.question, answer_text)
+        return {
+            "original_question": request.question,
+            "rewritten_question": rewritten_question,
+            "gate_score": round(top_chunks[0]["score"], 4) if top_chunks else 0,
+            "answer": answer_text,
+            "sources": [],
+            "cost": round(rewrite_cost, 6)
+        }
+
+    # STEP 4: grounded answer, same rules
+    answer_text, chat_cost = generate_answer_lc(rewritten_question, top_chunks, history)
+    total_cost = rewrite_cost + chat_cost
+
+    save_turn(request.session_id, request.question, answer_text)
+
+    return {
+        "original_question": request.question,
+        "rewritten_question": rewritten_question,
+        "gate_score": round(top_chunks[0]["score"], 4),
+        "answer": answer_text,
+        "sources": [
+            {"chunk_id": c["chunk_id"], "start_position": c["start_position"]}
+            for c in top_chunks
+        ],
+        "cost": round(total_cost, 6)
+    }
+
+
+@app.get("/history/{session_id}")
+async def history(session_id: str):
+    return {"session_id": session_id, "history": get_history(session_id)}

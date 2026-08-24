@@ -25,3 +25,8 @@ SIMILARITY_THRESHOLD = 0.45
 
 # ----- how many past exchanges to send to the model for context -----
 HISTORY_LENGTH = 3
+
+
+# Chroma's relevance scores are on a different scale than our hand-built
+# cosine similarity, so they need their own threshold.
+LC_SIMILARITY_THRESHOLD = 0.30
