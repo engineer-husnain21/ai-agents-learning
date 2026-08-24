@@ -356,3 +356,37 @@ After (with rewrite): the follow-up question cost $0.001763 - the extra ~$0.0007
 
 ### What I store in memory
 I save the user's ORIGINAL question to history, not the rewrite. The rewrite is an internal retrieval detail - if I saved the rewritten version instead, the conversation history returned by /history would show questions the user never actually typed, which would be confusing and dishonest about what really happened in the conversation.
+
+
+
+
+
+
+## Task 6 - Rebuild with LangChain (branch: task-6-langchain)
+
+I rebuilt the /upload, /ask, /history endpoints using LangChain: RecursiveCharacterTextSplitter (chunking), Chroma + AzureOpenAIEmbeddings (vector store), and AzureChatOpenAI (rewrite + answer). The threshold gate and SQLite memory stayed mine - the framework only retrieves, my code still decides if it's good enough to answer from.
+
+### Component comparison
+
+| Component | My lines of code | Framework lines | What the framework hid from me |
+|---|---|---|---|
+| Chunking | ~25 lines (manual while loop, start/overlap math) | ~5 lines (just call RecursiveCharacterTextSplitter) | Where exactly to cut - it tries paragraph breaks, then sentences, then words, only falling back to raw characters as a last resort |
+| Embeddings + similarity | ~50 lines (cosine_similarity written by hand, embed_text, scoring loop) | ~10 lines (Chroma.from_documents + similarity_search_with_relevance_scores) | The entire vector math, storage, and indexing - I never see a single number multiplied |
+| Retrieval | included above | included above | How results get sorted/ranked internally |
+| Rewrite + answer | ~70 lines (manual prompt strings, raw openai client calls, manual token math for cost) | ~55 lines (same prompt text, but AzureChatOpenAI.invoke() instead of client.chat.completions.create()) | Not much here - the framework mostly just wraps the same API call, the prompt itself is still fully mine |
+
+### One thing the framework does differently
+
+I ran the same book through my chunker (task 1) and the LangChain splitter. My chunker made 210 chunks; LangChain made 209. The real difference is WHERE it cuts: my chunker cuts at exactly `size` characters no matter what, even mid-word - that's literally the task 1 stretch goal I never built (cutting at the nearest space). LangChain's RecursiveCharacterTextSplitter does this automatically - it prefers to break on paragraph breaks first, then sentences, then spaces, and only cuts mid-word as an absolute last resort. So the framework gave me the stretch goal I skipped, for free.
+
+### What did the framework decide for me?
+
+The framework decided WHERE to cut chunks (paragraph/sentence/word boundaries instead of my fixed character count), and it decided how to store and search vectors internally (I never touch the actual similarity math anymore). 
+
+The one I'd want back in a system I'm responsible for: the exact chunk-cutting boundary. Right now I don't know precisely why LangChain chose a specific cut point over another nearby one - with my hand-built version, I could always explain exactly why a chunk started and ended where it did, because I wrote the rule myself. If something goes wrong with a specific answer, I can debug my own chunker's decision instantly; with the framework, I'd have to go read its source code first.
+
+### When would I reach for the framework vs build by hand?
+
+I'd reach for the framework for anything where the "how" is genuinely a solved, boring problem that isn't the point of what I'm building - chunking logic, vector storage/indexing, and API call wrapping are all things thousands of people have already optimized, and reinventing them wastes time without teaching me anything new once I already understand the concept.
+
+I'd build by hand for anything that IS the actual decision-making logic of my system - like the threshold gate and the grounding rules. Those aren't "solved problems" with one right answer; they're judgment calls specific to my use case (what counts as "confident enough," what the refusal message says, what the rewrite prompt is allowed and not allowed to do). If I let a framework make those decisions, I'd lose the ability to explain or defend exactly how my system behaves - which is the whole point of me being responsible for the answers it gives.
