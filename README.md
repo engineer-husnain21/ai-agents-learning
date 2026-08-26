@@ -390,3 +390,45 @@ The one I'd want back in a system I'm responsible for: the exact chunk-cutting b
 I'd reach for the framework for anything where the "how" is genuinely a solved, boring problem that isn't the point of what I'm building - chunking logic, vector storage/indexing, and API call wrapping are all things thousands of people have already optimized, and reinventing them wastes time without teaching me anything new once I already understand the concept.
 
 I'd build by hand for anything that IS the actual decision-making logic of my system - like the threshold gate and the grounding rules. Those aren't "solved problems" with one right answer; they're judgment calls specific to my use case (what counts as "confident enough," what the refusal message says, what the rewrite prompt is allowed and not allowed to do). If I let a framework make those decisions, I'd lose the ability to explain or defend exactly how my system behaves - which is the whole point of me being responsible for the answers it gives.
+
+
+## Task 7 - First Agent (branch: task-7-agent)
+
+I built an agent with two tools: `search_book` (wraps retrieval, threshold gate moved INSIDE the tool) and `book_stats` (deterministic, no AI — returns character/chunk count and filename). Exposed as `POST /ask_agent`, alongside the existing `/ask` pipeline, which was left untouched so both could be compared side by side.
+
+### Why the gate moved inside the tool
+
+In the pipeline, my own code calls retrieval and my own code checks the score before deciding to answer — I'm the trusted caller. With an agent, the model decides when to call `search_book`, and I can't trust it to check a similarity score before treating weak results as solid. The gate has to live wherever the untrusted decision-maker is — which is now inside the tool itself.
+
+### Comparison table
+
+| Question | Pipeline result | Agent tools called | Agent LLM calls | Agent cost | Agent correct? |
+|---|---|---|---|---|---|
+| where does alice fall | Correct (gate 0.62) | search_book | 2 | $0.0013 | Correct |
+| who is alice | Correctly refused (gate 0.29) | search_book | 2 | $0.0006 | Correctly refused |
+| who is the mad hatter | Correct (gate 0.34) | search_book (x2) | 3 | $0.0024 | Correct |
+| what happens at the end of the story | Partially correct (gate 0.42, boosted by history) | search_book | 2 | $0.0004 | Correctly refused |
+| what does the white rabbit say | Correct, good quotes | search_book | 2 | $0.0018 | Correct, same quotes |
+| hello, how are you? | No small-talk path — always retrieves | none | 1 | $0.0001 | Correct, skipped retrieval |
+| how many chunks is the book split into? | No stats capability | book_stats | 2 | $0.0003 | Correct |
+| football score yesterday | Correctly refused, $0 chat cost | none | 1 | $0.0008 | Answered from general knowledge, admitted no live data |
+| weather today | Correctly refused, $0 chat cost | none | 1 | $0.0008 | Same as above |
+| **My prediction question:** "who did she meet after that?" | Correct, via dedicated rewrite step | search_book | 2 | $0.0006 | **Incorrect** — "nothing relevant found" |
+
+### My prediction (written before running it)
+
+The pipeline has a separate rewrite step that turns "who did she meet after that?" into a standalone question before searching. The agent has no such step — it only sees raw history inside its own reasoning. I predicted the agent might still get it right since it can "see" history directly, but if it failed, it would be because it passed the vague, un-rewritten question straight to `search_book`.
+
+**Result:** it failed exactly as predicted — the agent sent something close to the original vague question to `search_book`, got "nothing relevant found," and told the user the answer wasn't there, even though the pipeline found it easily. Without an explicit rewrite step, a tool call doesn't automatically inherit the benefit of conversation context the way a final answer might.
+
+### Reflections
+
+**1. Where the agent did better / worse:** Better — it correctly skipped retrieval for the greeting and the two real-world unanswerable questions instead of forcing them through a fixed refusal path, and it has `book_stats`, which the pipeline lacks entirely. Worse — it failed the one follow-up question that needed history resolved *before* searching, something the pipeline's rewrite step handled correctly.
+
+**2. The greeting:** The pipeline has no shortcut for it — it would run the full rewrite → embed → gate flow and likely get refused, still paying for at least one embedding call. The agent spent one LLM call (~$0.0001) and never touched the vector store, because the model itself recognized no tool was needed.
+
+**3. Did the agent ever skip search_book on a real book question?** No — it always called the tool for genuine content questions. On the follow-up, it called the tool but with a bad query, producing a wrong refusal rather than a hallucination. That's safer than making something up, but still a failure a user can't detect without knowing the real answer. What prevents outright hallucination is the system prompt rule plus the tool itself refusing to return weak matches.
+
+**4. Cost — predictable or not?** The pipeline's cost per question is fixed and known in advance: one embed call, sometimes a rewrite call, sometimes a chat call. The agent's cost varied even across similar questions (1–3 LLM calls, and once it called the same tool twice), so I can only give a range for it, not a fixed number.
+
+**5. The verdict:** I'd ship the pipeline for this document Q&A use case, and save the agent for genuinely open-ended tasks. My evidence: the pipeline's grounding is enforced by code I fully control (gate, rewrite step), making its behavior 100% predictable. The agent's flexibility was real but came with a new failure mode I didn't have before, precisely because I no longer control every step. I'd rather ship a system where I can list everything it will do, and reach for an agent only when the task truly needs the model to choose between different multi-step paths — not just decide "answer directly" vs. "search."
