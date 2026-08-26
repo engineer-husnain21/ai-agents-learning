@@ -1,21 +1,24 @@
 """
-main_lc.py — SAME contract as app/main.py (task 5.5): /upload, /ask, /history.
+main_lc.py — SAME contract as app/main.py: /upload, /ask, /history.
+Plus /ask_agent (task 7): an agent with tools, next to the pipeline.
 Internals rebuilt with LangChain: RecursiveCharacterTextSplitter, Chroma,
 AzureOpenAIEmbeddings, AzureChatOpenAI. Threshold gate, refusal messages,
-and SQLite memory are still OURS — the framework doesn't decide those.
+and SQLite memory are still OURS.
 Run with: uvicorn app.main_lc:app --reload --port 8002
 """
 
 from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
+from langgraph.prebuilt import create_react_agent
 
 from app.chunking_lc import chunk_text_lc
 from app.vectorstore_lc import build_vectorstore, get_top_chunks_lc
-from app.rewriting_lc import rewrite_question_lc
+from app.rewriting_lc import rewrite_question_lc, chat_model
 from app.answering_lc import generate_answer_lc
-from app.retrieval import passes_gate  # our gate logic, unchanged
+from app.retrieval import passes_gate
+from app.agent_tools import search_book, book_stats, set_agent_state
 from app.memory import init_db, save_turn, get_history
-from app.config import HISTORY_LENGTH
+from app.config import HISTORY_LENGTH, CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M, LC_SIMILARITY_THRESHOLD
 
 app = FastAPI()
 
@@ -33,6 +36,8 @@ async def upload(file: UploadFile):
 
     chunks = chunk_text_lc(text)
     state["vectorstore"] = build_vectorstore(chunks)
+
+    set_agent_state(state["vectorstore"], file.filename, len(text), len(chunks))
 
     return {
         "message": f"Uploaded and processed '{file.filename}'",
@@ -52,16 +57,12 @@ async def ask(request: AskRequest):
 
     history = get_history(request.session_id, limit=HISTORY_LENGTH)
 
-    # STEP 1: rewrite (only if history exists) — same rules as task 5.5
     rewritten_question, rw_in, rw_out = rewrite_question_lc(request.question, history)
-    from app.config import CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M
     rewrite_cost = (rw_in / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
     rewrite_cost += (rw_out / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
 
-    # STEP 2: retrieve via Chroma. STEP 3: OUR gate, unchanged.
     top_chunks = get_top_chunks_lc(state["vectorstore"], rewritten_question)
 
-    from app.config import LC_SIMILARITY_THRESHOLD
     gate_passed = top_chunks and top_chunks[0]["score"] >= LC_SIMILARITY_THRESHOLD
 
     if not gate_passed:
@@ -76,7 +77,6 @@ async def ask(request: AskRequest):
             "cost": round(rewrite_cost, 6)
         }
 
-    # STEP 4: grounded answer, same rules
     answer_text, chat_cost = generate_answer_lc(rewritten_question, top_chunks, history)
     total_cost = rewrite_cost + chat_cost
 
@@ -92,6 +92,60 @@ async def ask(request: AskRequest):
             for c in top_chunks
         ],
         "cost": round(total_cost, 6)
+    }
+
+
+SYSTEM_PROMPT = """You are a helpful assistant answering questions about an uploaded document.
+
+Rules:
+- For any question about the book's content, use the search_book tool. Answer ONLY from what it returns.
+- If search_book says "nothing relevant found in the document", say exactly that to the user — do not guess or use outside knowledge.
+- For questions about the book's size/structure (character count, chunk count, filename), use the book_stats tool.
+- Never answer a content question about the book without calling search_book first.
+- For greetings or small talk unrelated to the book, you may respond directly without calling any tool."""
+
+agent = create_react_agent(chat_model, tools=[search_book, book_stats], prompt=SYSTEM_PROMPT)
+
+
+@app.post("/ask_agent")
+async def ask_agent(request: AskRequest):
+    if state["vectorstore"] is None:
+        return {"error": "No document has been uploaded yet. Use /upload first."}
+
+    history = get_history(request.session_id, limit=HISTORY_LENGTH)
+
+    messages = []
+    for turn in history:
+        messages.append({"role": "user", "content": turn["question"]})
+        messages.append({"role": "assistant", "content": turn["answer"]})
+    messages.append({"role": "user", "content": request.question})
+
+    result = agent.invoke({"messages": messages})
+
+    tools_called = []
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    for msg in result["messages"]:
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            for tc in msg.tool_calls:
+                tools_called.append(tc["name"])
+        if hasattr(msg, "usage_metadata") and msg.usage_metadata:
+            total_input_tokens += msg.usage_metadata.get("input_tokens", 0)
+            total_output_tokens += msg.usage_metadata.get("output_tokens", 0)
+
+    answer_text = result["messages"][-1].content
+
+    cost = (total_input_tokens / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
+    cost += (total_output_tokens / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
+
+    save_turn(request.session_id, request.question, answer_text)
+
+    return {
+        "answer": answer_text,
+        "tools_called": tools_called,
+        "llm_calls": sum(1 for m in result["messages"] if hasattr(m, "usage_metadata") and m.usage_metadata),
+        "cost": round(cost, 6)
     }
 
 
