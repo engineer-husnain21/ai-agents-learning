@@ -432,3 +432,48 @@ The pipeline has a separate rewrite step that turns "who did she meet after that
 **4. Cost — predictable or not?** The pipeline's cost per question is fixed and known in advance: one embed call, sometimes a rewrite call, sometimes a chat call. The agent's cost varied even across similar questions (1–3 LLM calls, and once it called the same tool twice), so I can only give a range for it, not a fixed number.
 
 **5. The verdict:** I'd ship the pipeline for this document Q&A use case, and save the agent for genuinely open-ended tasks. My evidence: the pipeline's grounding is enforced by code I fully control (gate, rewrite step), making its behavior 100% predictable. The agent's flexibility was real but came with a new failure mode I didn't have before, precisely because I no longer control every step. I'd rather ship a system where I can list everything it will do, and reach for an agent only when the task truly needs the model to choose between different multi-step paths — not just decide "answer directly" vs. "search."
+
+
+
+
+
+## Task 8 - Automated Eval Harness (branch: task-8-evals)
+
+I built `eval_set.json` (13 test cases: 5 Alice questions, 2 unanswerable, book stats, a follow-up pair, a greeting, a cat-name fact, and one intentionally hard-to-grade question) and `eval.py`, which runs the set against a live endpoint over HTTP, grades each response automatically, and saves a timestamped results file so runs can be compared later.
+
+### Runs
+
+| Run | Endpoint | Answer accuracy | Refusal accuracy | Cost | Time |
+|---|---|---|---|---|---|
+| 1 | /ask | 66.7% | 100% | $0.0071 | 53.6s |
+| 2 | /ask | 66.7% | 100% | $0.0069 | 43.0s |
+| 3 | /ask | 77.8% | 100% | $0.0085 | 50.6s |
+| 1 | /ask_agent | 88.9% | 50% | $0.0175 | 99.3s |
+| 2 | /ask_agent | 88.9% | 50% | $0.0134 | 86.8s |
+| 3 | /ask_agent | 88.9% | 50% | $0.0131 | 79.9s |
+
+### Variance observation
+
+`/ask` (the pipeline) showed real question-level variance: the "mad_hatter" question FAILED in run 1 and 2, but PASSED in run 3, with no code changes between runs - the gate score for that question sits close enough to the threshold that small embedding/search fluctuations flip the result. Two other failures (cat_name, book_stats) were identical across all 3 runs - genuine, stable issues, not variance.
+
+`/ask_agent`'s pass/fail pattern was identical across all 3 runs (same 3 failures every time) - but cost and time varied noticeably run to run ($0.0131-$0.0175, 80-99s), because the number of LLM calls the agent makes isn't fixed. So the pipeline has question-level result variance with fairly stable cost, while the agent has stable results but variable cost - the unpredictability shows up in a different place for each system.
+
+### Tuning experiment
+
+I raised `LC_SIMILARITY_THRESHOLD` from 0.30 to 0.40 and re-ran the harness on `/ask`. Answer accuracy dropped from ~67-78% to 22.2% - even "where does alice fall," which had passed in every prior run, started failing because its gate score no longer cleared the higher bar. Refusal accuracy stayed at 100% since the genuinely unanswerable questions were already scoring well below either threshold.
+
+**Decision the numbers support:** keep the threshold at 0.30. Raising it did not meaningfully improve refusal accuracy (already perfect) but severely damaged answer accuracy - a strictly worse trade-off. I reverted the change.
+
+### README reflections
+
+1. Where does keyword grading break?
+My "hard_to_grade" question ("is the hatter actually mad, or is that just what people call him?") uses keywords ("mad", "hatter") that will appear in almost any answer, correct or not - a wrong answer that simply repeats the question's own words would still pass. I also saw the reverse problem for real: on `/ask_agent`, the weather and football questions were graded FAIL even though the agent behaved correctly (it politely explained it has no live data) - my refusal grader only looks for the exact phrase "does not contain an answer," which the agent never says. A smarter grader — LLM-as-judge — would read the actual answer and decide if it's correct/appropriately-refused in meaning, not just in wording. The cost: an extra LLM call per graded question, which roughly doubles the harness's own cost and adds its own (smaller) risk of misjudging.
+
+2. Why must every non-follow-up question run in a fresh session?
+If two unrelated questions shared a session, the second question's rewrite step and the model's context would include the first question's history — this could wrongly "fix" a vague reference that isn't actually there, or bias retrieval toward the first question's topic. It would make a question artificially easier or harder to answer depending on what happened to run before it, instead of testing the system's real ability to handle that question cold.
+
+3. Which scorecard number would I watch most closely in production?
+Refusal accuracy. A wrong refusal on an answerable question is annoying but safe - the user just doesn't get help. A wrong "answer" on a question that should have been refused means the system is confidently making something up, which is the failure mode that actually damages trust. I'd rather over-refuse than ever under-refuse.
+
+4. Tuning experiment summary
+I changed the similarity threshold from 0.30 to 0.40. Answer accuracy dropped sharply (to 22.2%) while refusal accuracy stayed the same. Decision: keep 0.30 — the higher threshold only removed correct answers without gaining any real safety benefit.
