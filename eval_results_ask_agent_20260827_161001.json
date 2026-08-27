@@ -1,0 +1,140 @@
+{
+  "endpoint": "/ask_agent",
+  "timestamp": "20260827_161001",
+  "answer_accuracy_pct": 88.9,
+  "refusal_accuracy_pct": 50.0,
+  "total_cost": 0.013067,
+  "total_time_seconds": 79.92,
+  "results": [
+    {
+      "id": "alice_fall",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "She falls down a deep well \u2014 \u201cEither the well was very deep, or she fell very slowly\u2026\u201d Eventually she lands on \u201ca heap of sticks and dry leaves,\u201d and finds herself in a long, low hall lit by lamps.",
+      "cost": 0.001163,
+      "time_seconds": 8.221
+    },
+    {
+      "id": "alice_who",
+      "question": "who is alice",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "nothing relevant found in the document",
+      "cost": 0.000638,
+      "time_seconds": 5.724
+    },
+    {
+      "id": "mad_hatter",
+      "question": "who is the mad hatter",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "In the book, the Hatter is the character who sits at the tea-table with the March Hare and a Dormouse in Chapter VII, \u201cA Mad Tea-Party.\u201d The text shows him taking part in the eccentric tea-party (\u201cthe March Hare and the Hatter were having tea at it\u201d) and later appearing nervous at the Queen\u2019s court, trembling as he gives evidence (\u201cthe wretched Hatter trembled so\u2026 \u2018I\u2019m a poor man, your Majesty,\u2019 the Hatter began, in a trembling voice, \u2018\u2014and I hadn\u2019t begun my tea\u2026\u2019\u201d).",
+      "cost": 0.001952,
+      "time_seconds": 11.339
+    },
+    {
+      "id": "story_end",
+      "question": "what happens at the end of the story",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "nothing relevant found in the document",
+      "cost": 0.000652,
+      "time_seconds": 5.889
+    },
+    {
+      "id": "white_rabbit_says",
+      "question": "what does the white rabbit say",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "From the passages found in the book, the White Rabbit says (quotes shown as in the text):\n\n- \u201cOh my ears and whiskers, how late it\u2019s getting!\u201d \u2014 as it hurries down the passage while Alice follows.  \n- \u201cIt\u2019s\u2014it\u2019s a very fine day!\u201d \u2014 a timid voice at Alice\u2019s side as she walks by the White Rabbit.  \n- \u201cHush! Hush!\u201d \u2014 in a low, hurried tone when speaking to Alice.  \n- (whispering close to her ear) \u201cShe\u2019s under sentence of execution.\u201d  \n- \u201cDid you say \u2018What a pity!\u2019?\u201d \u2014 the Rabbit asked.  \n- It begins, \u201cShe boxed the Queen\u2019s ears\u2014\u201d before being hushed.\n\nThese lines are taken directly from the returned excerpts.",
+      "cost": 0.001522,
+      "time_seconds": 8.045
+    },
+    {
+      "id": "weather_unanswerable",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": false,
+      "detail": "refused=False",
+      "answer": "I don\u2019t have access to live weather data. Tell me the city or ZIP code you care about and whether you want the current conditions, an hourly forecast, or a multi-day outlook \u2014 I can then tell you how to check quickly (best websites/apps) or provide typical climate info for that place.",
+      "cost": 0.000735,
+      "time_seconds": 3.569
+    },
+    {
+      "id": "football_unanswerable",
+      "question": "what was the football score yesterday",
+      "type": "refuse",
+      "correct": false,
+      "detail": "refused=False",
+      "answer": "Which football do you mean \u2014 soccer (association football) or American football \u2014 and which teams or league/game are you asking about? I don\u2019t have live internet access to look up yesterday\u2019s scores, but if you tell me the teams or competition I can tell you the best places to check (ESPN, BBC Sport, Flashscore, official league sites/apps, etc.) or walk you through finding the result.",
+      "cost": 0.001035,
+      "time_seconds": 4.393
+    },
+    {
+      "id": "book_stats",
+      "question": "how many chunks is the book split into?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "The book is split into 209 chunks. The filename is book.txt and it has 167,712 characters in total.",
+      "cost": 0.000272,
+      "time_seconds": 3.697
+    },
+    {
+      "id": "followup_setup",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "She falls down a deep well \u2014 eventually coming to rest on a heap of sticks and dry leaves.",
+      "cost": 0.001109,
+      "time_seconds": 5.214
+    },
+    {
+      "id": "followup_who_met",
+      "question": "who did she meet after that?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "She saw the White Rabbit hurrying down the passage \u2014 she ran after it, but when it turned a corner the Rabbit was no longer to be seen.",
+      "cost": 0.001702,
+      "time_seconds": 9.11
+    },
+    {
+      "id": "greeting",
+      "question": "hello, how are you?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "Hi \u2014 I'm doing well, thanks! How can I help you today?",
+      "cost": 0.000131,
+      "time_seconds": 2.7
+    },
+    {
+      "id": "cat_name",
+      "question": "what is the name of alice's cat",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "nothing relevant found in the document",
+      "cost": 0.000287,
+      "time_seconds": 3.399
+    },
+    {
+      "id": "hard_to_grade_hatter_identity",
+      "question": "is the hatter actually mad, or is that just what people call him?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "The book presents him as mad \u2014 other characters call him that and the episode is even titled \u201cA Mad Tea\u2011Party.\u201d The Cheshire Cat tells Alice \u201cthey\u2019re both mad,\u201d and later declares \u201cwe\u2019re all mad here.\u201d At the tea party the Hatter\u2019s behaviour is chaotic, and in the trial he trembles and gives odd, rambling testimony (e.g. \u201cI hadn\u2019t begun my tea\u2014not above a week or so\u2014and what with the bread-and-butter getting so thin\u2014and the twinkling of the tea\u2014\u201d), all of which the text uses to portray him as mad.",
+      "cost": 0.001869,
+      "time_seconds": 8.621
+    }
+  ]
+}
