@@ -477,3 +477,57 @@ Refusal accuracy. A wrong refusal on an answerable question is annoying but safe
 
 4. Tuning experiment summary
 I changed the similarity threshold from 0.30 to 0.40. Answer accuracy dropped sharply (to 22.2%) while refusal accuracy stayed the same. Decision: keep 0.30 — the higher threshold only removed correct answers without gaining any real safety benefit.
+
+
+
+
+
+## Task 9 - Handle the Borderline (branch: task-9-borderline)
+
+I built `repeat_test.py`, which asks the SAME question N times (fresh session each time) and records the gate score for every run — this measures instability directly instead of guessing at it.
+
+### Section 1: Measuring the instability
+
+| Question | Runs | Score min | Score max | Spread | Answers seen |
+|---|---|---|---|---|---|
+| who is the mad hatter (flipping) | 10 | 0.3407 | 0.3407 | 0.0000 | 6 unique wordings, 4/10 wrongly refused |
+| where does alice fall (always passes) | 10 | 0.3810 | 0.3812 | 0.0002 | 5 unique wordings, always correct |
+| what is the weather today (always refuses) | 10 | -0.1730 | -0.1729 | 0.0001 | 1 unique answer, always refused |
+
+**Finding: the gate score is essentially perfectly stable** (spread of 0.0000-0.0002 is floating-point rounding, not real variance). The ANSWER text varies across all three questions - but only the flipping question's variance ever crossed the line into a wrong refusal. This immediately rules out "embeddings changing run to run" and "retrieval returning different chunks" - if either were true, the score itself would move. It didn't.
+
+### Section 2: Why this happens
+
+The score doesn't flip - the model's final judgment does. Every run retrieves the exact same 3 chunks (same score = same chunks, since our retrieval is deterministic). But when those same chunks are handed to the model to answer, the model doesn't always agree they're sufficient - sometimes it says "The Hatter is..." and sometimes it says "the document does not contain an answer," from identical input. That's normal LLM output variance at the language-generation step, not a retrieval or embedding bug.
+
+This also matches the deeper design point: the gate is one hard line, and "who is the mad hatter" sits close enough to it (0.34 vs threshold 0.30) that its retrieval was always borderline-confident to begin with - which is likely part of why the model's own confidence in the retrieved chunks wavers too. A question sitting exactly on a threshold will always be a coin flip in SOME part of the system; the real question is what to do about it.
+
+### Section 3: Strategy chosen — a version of C (move the decision)
+
+I ruled out the other three based directly on my Section 1 data:
+- **A (retry retrieval):** rejected — retrieval already returns the identical chunk set every time (score spread of 0.0000). Retrying retrieval cannot produce a different result.
+- **B (grey zone on score):** rejected — the instability isn't in the score at all, so adding a second threshold line wouldn't touch the actual bug.
+- **D (do nothing):** rejected — this isn't a tiny, ignorable variance. It's a 40% wrong-refusal rate on a question that has a real, well-supported answer in the retrieved chunks. That would visibly hurt real users.
+
+I implemented a simplified version of **C**: instead of adding a separate LLM-judge call, I retry the ANSWERING step itself (not retrieval) exactly once if the model refuses despite the gate having passed. Since retrieval is proven stable, re-asking the same model to answer from the same trusted chunks a second time gives it another independent chance to produce the correct judgment, at the cost of one extra chat call only in the refusal case (which is rare once the gate has already passed).
+
+### Section 4: Proof
+
+**Before fix:** 10/10 repeat_test runs on "who is the mad hatter" → 6/10 correct, 4/10 wrongly refused.
+**After fix:** 10/10 repeat_test runs → 10/10 correct, 0 wrong refusals.
+
+**Harness before vs after (from Task 8's original runs vs this task's post-fix run):**
+
+| Metric | Before | After |
+|---|---|---|
+| Answer accuracy | 66.7%-77.8% (varied by run) | 77.8% (stable) |
+| Refusal accuracy | 100% | 100% (unchanged) |
+| mad_hatter question | flipped pass/fail | passes every time now |
+
+**Cost difference:** the retry only fires when the model refuses despite a passing gate — in the after-fix harness run, this cost roughly one extra chat call for the mad_hatter question specifically, adding about $0.0007-0.0009 to that one question's cost. Every other question paid nothing extra, since the retry only activates on a refusal-after-pass, which is rare.
+
+**One sentence — what would make me reverse this decision:** if the retry started firing on many different questions instead of just this one borderline case (meaning the model routinely can't judge good chunks correctly), that would signal a deeper prompt or model reliability problem the retry is just papering over, and I'd need to redesign the answering prompt instead of patching around it.
+
+### A note on the "last line" instruction
+
+My Section 1 measurements did NOT match the document's two predicted causes ("embeddings changing" or "retrieval returning a different chunk set") — both would have shown up as score movement, and the score didn't move at all. My data pointed to the answering step itself being the unstable part, which the document didn't explicitly list as a candidate. I followed the data on this rather than forcing my findings into one of the two predicted causes.
