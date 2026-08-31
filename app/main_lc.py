@@ -80,6 +80,15 @@ async def ask(request: AskRequest):
     answer_text, chat_cost = generate_answer_lc(rewritten_question, top_chunks, history)
     total_cost = rewrite_cost + chat_cost
 
+    # Task 9 fix: our data showed retrieval/gate score is stable, but the
+    # model's own judgment on whether the chunks answer the question can
+    # flip. If the gate passed (we trust the chunks) but the model still
+    # refused, that's the model being wrong, not the gate. Retry the
+    # ANSWERING step once (not retrieval — we proved that's not the issue).
+    if "does not contain an answer" in answer_text.lower():
+        answer_text, retry_cost = generate_answer_lc(rewritten_question, top_chunks, history)
+        total_cost += retry_cost
+
     save_turn(request.session_id, request.question, answer_text)
 
     return {
