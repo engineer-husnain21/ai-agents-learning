@@ -1,0 +1,140 @@
+{
+  "endpoint": "/ask",
+  "timestamp": "20260901_140148",
+  "answer_accuracy_pct": 11.1,
+  "refusal_accuracy_pct": 100.0,
+  "total_cost": 0.000322,
+  "total_time_seconds": 10.85,
+  "results": [
+    {
+      "id": "alice_fall",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.74
+    },
+    {
+      "id": "alice_who",
+      "question": "who is alice",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.698
+    },
+    {
+      "id": "mad_hatter",
+      "question": "who is the mad hatter",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.481
+    },
+    {
+      "id": "story_end",
+      "question": "what happens at the end of the story",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.497
+    },
+    {
+      "id": "white_rabbit_says",
+      "question": "what does the white rabbit say",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.467
+    },
+    {
+      "id": "weather_unanswerable",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.458
+    },
+    {
+      "id": "football_unanswerable",
+      "question": "what was the football score yesterday",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.448
+    },
+    {
+      "id": "book_stats",
+      "question": "how many chunks is the book split into?",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.475
+    },
+    {
+      "id": "followup_setup",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.718
+    },
+    {
+      "id": "followup_who_met",
+      "question": "who did she meet after that?",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.000322,
+      "time_seconds": 3.438
+    },
+    {
+      "id": "greeting",
+      "question": "hello, how are you?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.862
+    },
+    {
+      "id": "cat_name",
+      "question": "what is the name of alice's cat",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.815
+    },
+    {
+      "id": "hard_to_grade_hatter_identity",
+      "question": "is the hatter actually mad, or is that just what people call him?",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.754
+    }
+  ]
+}
