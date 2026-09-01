@@ -44,9 +44,9 @@ def print_stats():
     # ----- cost / latency -----
     total_cost = sum(e.get("cost", 0) for e in events)
     avg_cost = total_cost / total
-    latencies = [e.get("latency_seconds", 0) for e in events]
-    avg_latency = sum(latencies) / total
-    worst_latency = max(latencies)
+    latencies = [e.get("latency_seconds") for e in events if e.get("latency_seconds") is not None]
+    avg_latency = sum(latencies) / len(latencies) if latencies else 0
+    worst_latency = max(latencies) if latencies else 0
 
     # ----- gate score distribution -----
     scores = [e["gate_score"] for e in events if e.get("gate_score") is not None]
