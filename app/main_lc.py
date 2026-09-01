@@ -1,9 +1,6 @@
 """
-main_lc.py — SAME contract as app/main.py: /upload, /ask, /history.
-Plus /ask_agent (task 7): an agent with tools, next to the pipeline.
-Internals rebuilt with LangChain: RecursiveCharacterTextSplitter, Chroma,
-AzureOpenAIEmbeddings, AzureChatOpenAI. Threshold gate, refusal messages,
-and SQLite memory are still OURS.
+main_lc.py — /upload, /ask, /ask_agent, /history, /stats.
+Task 10: every /ask call is logged as a structured event.
 Run with: uvicorn app.main_lc:app --reload --port 8002
 """
 
@@ -15,9 +12,9 @@ from app.chunking_lc import chunk_text_lc
 from app.vectorstore_lc import build_vectorstore, get_top_chunks_lc
 from app.rewriting_lc import rewrite_question_lc, chat_model
 from app.answering_lc import generate_answer_lc
-from app.retrieval import passes_gate
 from app.agent_tools import search_book, book_stats, set_agent_state
 from app.memory import init_db, save_turn, get_history
+from app.logging_lc import log_event, Timer
 from app.config import HISTORY_LENGTH, CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M, LC_SIMILARITY_THRESHOLD
 
 app = FastAPI()
@@ -52,49 +49,73 @@ class AskRequest(BaseModel):
 
 @app.post("/ask")
 async def ask(request: AskRequest):
-    if state["vectorstore"] is None:
-        return {"error": "No document has been uploaded yet. Use /upload first."}
+    with Timer() as request_timer:
+        if state["vectorstore"] is None:
+            return {"error": "No document has been uploaded yet. Use /upload first."}
 
-    history = get_history(request.session_id, limit=HISTORY_LENGTH)
+        history = get_history(request.session_id, limit=HISTORY_LENGTH)
 
-    rewritten_question, rw_in, rw_out = rewrite_question_lc(request.question, history)
-    rewrite_cost = (rw_in / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
-    rewrite_cost += (rw_out / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
+        rewritten_question, rw_in, rw_out = rewrite_question_lc(request.question, history)
+        was_rewritten = rewritten_question != request.question
+        rewrite_cost = (rw_in / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
+        rewrite_cost += (rw_out / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
+        llm_calls = 1 if history else 0  # rewrite only calls the model if there's history
 
-    top_chunks = get_top_chunks_lc(state["vectorstore"], rewritten_question)
+        top_chunks = get_top_chunks_lc(state["vectorstore"], rewritten_question)
+        gate_score = round(top_chunks[0]["score"], 4) if top_chunks else 0
+        gate_passed = top_chunks and top_chunks[0]["score"] >= LC_SIMILARITY_THRESHOLD
 
-    gate_passed = top_chunks and top_chunks[0]["score"] >= LC_SIMILARITY_THRESHOLD
+        retry_fired = False
+        retry_succeeded = None
 
-    if not gate_passed:
-        answer_text = "The document does not contain an answer to this question."
+        if not gate_passed:
+            answer_text = "The document does not contain an answer to this question."
+            outcome = "refused_by_gate"
+            total_cost = rewrite_cost
+            save_turn(request.session_id, request.question, answer_text)
+
+            log_event(
+                session_id=request.session_id, endpoint="/ask", question=request.question,
+                was_rewritten=was_rewritten, gate_score=gate_score, gate_passed=False,
+                outcome=outcome, retry_fired=False, retry_succeeded=None,
+                llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=None
+            )
+            result = {
+                "original_question": request.question, "rewritten_question": rewritten_question,
+                "gate_score": gate_score, "answer": answer_text, "sources": [],
+                "cost": round(total_cost, 6)
+            }
+            return result
+
+        answer_text, chat_cost = generate_answer_lc(rewritten_question, top_chunks, history)
+        llm_calls += 1
+
+        outcome = "answered"
+        if "does not contain an answer" in answer_text.lower():
+            outcome = "refused_by_model"
+            retry_fired = True
+            retry_answer, retry_cost = generate_answer_lc(rewritten_question, top_chunks, history)
+            llm_calls += 1
+            chat_cost += retry_cost
+            answer_text = retry_answer
+            retry_succeeded = "does not contain an answer" not in retry_answer.lower()
+            if retry_succeeded:
+                outcome = "answered"
+
+        total_cost = rewrite_cost + chat_cost
         save_turn(request.session_id, request.question, answer_text)
-        return {
-            "original_question": request.question,
-            "rewritten_question": rewritten_question,
-            "gate_score": round(top_chunks[0]["score"], 4) if top_chunks else 0,
-            "answer": answer_text,
-            "sources": [],
-            "cost": round(rewrite_cost, 6)
-        }
 
-    answer_text, chat_cost = generate_answer_lc(rewritten_question, top_chunks, history)
-    total_cost = rewrite_cost + chat_cost
-
-    # Task 9 fix: our data showed retrieval/gate score is stable, but the
-    # model's own judgment on whether the chunks answer the question can
-    # flip. If the gate passed (we trust the chunks) but the model still
-    # refused, that's the model being wrong, not the gate. Retry the
-    # ANSWERING step once (not retrieval — we proved that's not the issue).
-    if "does not contain an answer" in answer_text.lower():
-        answer_text, retry_cost = generate_answer_lc(rewritten_question, top_chunks, history)
-        total_cost += retry_cost
-
-    save_turn(request.session_id, request.question, answer_text)
+    log_event(
+        session_id=request.session_id, endpoint="/ask", question=request.question,
+        was_rewritten=was_rewritten, gate_score=gate_score, gate_passed=True,
+        outcome=outcome, retry_fired=retry_fired, retry_succeeded=retry_succeeded,
+        llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=round(request_timer.elapsed, 3)
+    )
 
     return {
         "original_question": request.question,
         "rewritten_question": rewritten_question,
-        "gate_score": round(top_chunks[0]["score"], 4),
+        "gate_score": gate_score,
         "answer": answer_text,
         "sources": [
             {"chunk_id": c["chunk_id"], "start_position": c["start_position"]}
