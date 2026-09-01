@@ -531,3 +531,48 @@ I implemented a simplified version of **C**: instead of adding a separate LLM-ju
 ### A note on the "last line" instruction
 
 My Section 1 measurements did NOT match the document's two predicted causes ("embeddings changing" or "retrieval returning a different chunk set") — both would have shown up as score movement, and the score didn't move at all. My data pointed to the answering step itself being the unstable part, which the document didn't explicitly list as a candidate. I followed the data on this rather than forcing my findings into one of the two predicted causes.
+
+
+
+
+
+
+## Task 10 - Observability (branch: task-10-observability)
+
+I built structured event logging and an aggregate stats reporter, so the system can now report on its own behavior instead of relying on manual harness runs to notice something wrong.
+
+### 1. Structured logging
+
+Every `/ask` request writes one JSON line to `events.jsonl`, containing: timestamp, session id, endpoint, question, whether it was rewritten, gate score, whether the gate passed, outcome (`answered` / `refused_by_gate` / `refused_by_model`), whether a retry fired and whether it succeeded, LLM call count, cost, and latency.
+
+`log_event()` is wrapped in a try/except that silently swallows any logging failure. Logging must never break a request — if the disk is full or the file is locked, the user still gets their answer; we just lose that one log line instead of losing the response.
+
+### 2. Aggregate stats (stats.py)
+
+Reads `events.jsonl` and reports: request count, outcome breakdown as percentages, retry rate and retry success rate, total and average cost, average and worst-case latency, and the gate-score distribution — including how many requests landed within ±0.05 of the threshold (the "borderline population" from task 9).
+
+Baseline run (14 requests): 57.1% answered, 42.9% refused by gate, 0% retry rate, avg cost $0.000562/question, avg latency 5.06s, borderline population 35.7% (5/14).
+
+### 3. Systemic vs random
+
+`stats.py` groups retries by question — one question retrying repeatedly would show up clearly as a pattern; many different questions each retrying once would show up as noise instead. In this run, retry rate was 0%, so there was nothing to group yet, but the mechanism is in place for when it happens at scale.
+
+**What retry rate would make me stop and investigate, and why:** I'd investigate at a sustained retry rate above roughly 10-15% of requests. Task 9 showed the retry logic exists specifically to catch a rare, borderline model-judgment flip — not to be a regular occurrence. A retry rate that low and occasional is expected noise; anything climbing well past that means the model is routinely failing to judge good chunks correctly, which points to a prompt or model reliability issue the retry is just papering over, not fixing.
+
+### 4. Break it on purpose
+
+I raised `LC_SIMILARITY_THRESHOLD` from 0.30 to 0.60 (clearly too strict), ran the eval harness, then looked only at `stats.py`.
+
+**What moved:** Answer accuracy in the eval harness dropped from 77.8% to 11.1%. Looking only at `stats.py` (not the eval output): `refused_by_gate` jumped to 100% of all 14 requests, average latency dropped to 0.00s, and total cost collapsed to $0.000322 for the whole run.
+
+**1. Did the numbers point at the actual cause?** Yes, clearly. 100% `refused_by_gate` (not `refused_by_model`) narrows the cause specifically to the gate/threshold, not the answering step. 0.00s average latency is the strongest signal — a healthy system should show non-zero latency on most requests (they involve at least an embedding call and often a chat call); latency flatlining to zero means requests are being short-circuited before any real work happens.
+
+**2. If I hadn't known what I changed, would the dashboard have told me something was wrong?** Yes — I'm confident it would have. A 100% refusal rate combined with 0.00s latency and near-zero cost is not a subtle signal; it's an obvious "nothing is getting through" pattern that doesn't require comparing against a baseline to notice.
+
+**3. What metric was missing that I now wish I'd logged?** The threshold value itself, per request. `stats.py`'s "borderline population" calculation used a hardcoded `THRESHOLD = 0.30` constant instead of reading the live value from `app/config.py`, so when I changed the real threshold to 0.60, the borderline-population number stayed at 35.7% — silently wrong, still measuring distance from the old threshold instead of the new one. I'd log the threshold that was actually in effect on each request so stats.py never drifts out of sync with the live config again.
+
+After reverting to 0.30, I re-ran the harness and stats: accuracy returned to 77.8%, refused_by_gate returned to 42.9%, latency and cost returned to baseline — confirming the damage was fully undone and there was no lasting side effect.
+
+### What the last three tasks add up to
+
+Task 8 gave the system a way to measure itself. Task 9 gave it a way to correct itself when a specific, provable bug was found. Task 10 gives it a way to report on itself continuously — without me having to run a harness by hand to notice something is wrong. Together, that's the difference between a demo I can show once and a system I could actually operate.
