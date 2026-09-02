@@ -1,0 +1,140 @@
+{
+  "endpoint": "/ask",
+  "timestamp": "20260902_124127",
+  "answer_accuracy_pct": 77.8,
+  "refusal_accuracy_pct": 100.0,
+  "total_cost": 0.008939,
+  "total_time_seconds": 64.38,
+  "results": [
+    {
+      "id": "alice_fall",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "She falls down a deep well and comes to rest upon a heap of sticks and dry leaves.",
+      "cost": 0.000782,
+      "time_seconds": 5.898
+    },
+    {
+      "id": "alice_who",
+      "question": "who is alice",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.683
+    },
+    {
+      "id": "mad_hatter",
+      "question": "who is the mad hatter",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "He is the Hatter \u2014 a man seated at the tea-party with the March Hare and a Dormouse. Later he appears in the Queen\u2019s court as a nervous, trembling witness who says \u201cI\u2019m a poor man\u2026 and I hadn\u2019t begun my tea.\u201d",
+      "cost": 0.001753,
+      "time_seconds": 12.796
+    },
+    {
+      "id": "story_end",
+      "question": "what happens at the end of the story",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.008
+    },
+    {
+      "id": "white_rabbit_says",
+      "question": "what does the white rabbit say",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "\"Oh my ears and whiskers, how late it\u2019s getting!\"",
+      "cost": 0.001407,
+      "time_seconds": 8.224
+    },
+    {
+      "id": "weather_unanswerable",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.984
+    },
+    {
+      "id": "football_unanswerable",
+      "question": "what was the football score yesterday",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.298
+    },
+    {
+      "id": "book_stats",
+      "question": "how many chunks is the book split into?",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.935
+    },
+    {
+      "id": "followup_setup",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "She falls down a deep well.",
+      "cost": 0.000887,
+      "time_seconds": 4.568
+    },
+    {
+      "id": "followup_who_met",
+      "question": "who did she meet after that?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "The White Rabbit.",
+      "cost": 0.00146,
+      "time_seconds": 9.494
+    },
+    {
+      "id": "greeting",
+      "question": "hello, how are you?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.094
+    },
+    {
+      "id": "cat_name",
+      "question": "what is the name of alice's cat",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=True",
+      "answer": "The Cheshire Cat",
+      "cost": 0.000878,
+      "time_seconds": 5.589
+    },
+    {
+      "id": "hard_to_grade_hatter_identity",
+      "question": "is the hatter actually mad, or is that just what people call him?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "The text presents him as actually mad. The Cheshire Cat says \u201cVisit either you like: they\u2019re both mad,\u201d and \u201cwe\u2019re all mad here. I\u2019m mad. You\u2019re mad.\u201d The chapter itself is titled \u201cA Mad Tea-Party,\u201d and the Hatter\u2019s behaviour (e.g. his frantic tea-party conduct and his disjointed, trembling testimony\u2014\u201cI\u2019m a poor man\u2026 and I hadn\u2019t begun my tea\u2026 and what with the bread-and-butter getting so thin\u2014and the twinkling of the tea\u2014\u201d) supports that he is truly mad rather than merely called so.",
+      "cost": 0.001772,
+      "time_seconds": 11.805
+    }
+  ]
+}
