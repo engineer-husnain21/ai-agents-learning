@@ -1,11 +1,13 @@
 """
-answering_lc.py — grounded answer using a LangChain PromptTemplate with
-the SAME rules as app/answering.py (task 4), and AzureChatOpenAI instead
-of a raw openai client call.
+answering_lc.py — grounded answer using a LangChain PromptTemplate.
+Now logs each call as a span (task 11), and accepts a `step` label so
+retries can be tagged separately from the first answer attempt.
 """
 
+import time
 from langchain_core.prompts import PromptTemplate
-from app.rewriting_lc import chat_model  # reuse the same chat model instance
+from app.rewriting_lc import chat_model
+from app.logging_lc import log_span
 
 ANSWER_PROMPT = PromptTemplate.from_template("""You must answer ONLY using the context chunks below.
 Rules:
@@ -23,7 +25,7 @@ Question: {question}
 Answer:""")
 
 
-def generate_answer_lc(question, top_chunks, history=None):
+def generate_answer_lc(question, top_chunks, history=None, request_id=None, step="answer"):
     context = "\n\n".join(
         f"[Chunk {c['chunk_id']}]: {c['text']}" for c in top_chunks
     )
@@ -39,7 +41,9 @@ def generate_answer_lc(question, top_chunks, history=None):
         context=context, question=question, history_text=history_text
     )
 
+    start = time.time()
     response = chat_model.invoke(prompt)
+    elapsed = time.time() - start
 
     answer_text = response.content
     input_tokens = response.usage_metadata["input_tokens"]
@@ -48,5 +52,11 @@ def generate_answer_lc(question, top_chunks, history=None):
     from app.config import CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M
     chat_cost = (input_tokens / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
     chat_cost += (output_tokens / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
+
+    log_span(
+        request_id=request_id, step=step, model="gpt-5-mini",
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        cost=round(chat_cost, 6), latency_seconds=round(elapsed, 3)
+    )
 
     return answer_text, chat_cost

@@ -26,7 +26,8 @@ def log_event(
     retry_succeeded,
     llm_calls,
     cost,
-    latency_seconds
+    latency_seconds,
+    request_id=None
 ):
     """
     outcome: "answered" | "refused_by_gate" | "refused_by_model"
@@ -35,6 +36,7 @@ def log_event(
     try:
         record = {
             "timestamp": datetime.now().isoformat(),
+            "request_id": request_id,
             "session_id": session_id,
             "endpoint": endpoint,
             "question": question,
@@ -51,9 +53,31 @@ def log_event(
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
     except Exception:
-        # Logging must never break a request. Swallow any failure here —
-        # disk full, file locked, permissions, whatever — the user still
-        # gets their answer regardless of whether we managed to log it.
+        pass
+
+
+SPAN_LOG_PATH = "spans.jsonl"
+
+
+def log_span(request_id, step, model, input_tokens, output_tokens, cost, latency_seconds):
+    """
+    One child record per LLM call. step: "rewrite" | "answer" | "retry_answer"
+    Same never-breaks-a-request rule as log_event().
+    """
+    try:
+        record = {
+            "timestamp": datetime.now().isoformat(),
+            "request_id": request_id,
+            "step": step,
+            "model": model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost": cost,
+            "latency_seconds": latency_seconds
+        }
+        with open(SPAN_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception:
         pass
 
 
