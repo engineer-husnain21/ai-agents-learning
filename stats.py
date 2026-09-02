@@ -7,6 +7,7 @@ import json
 from collections import defaultdict
 
 LOG_PATH = "events.jsonl"
+SPAN_LOG_PATH = "spans.jsonl"
 THRESHOLD = 0.30  # keep in sync with app/config.py LC_SIMILARITY_THRESHOLD
 BORDERLINE_WINDOW = 0.05
 
@@ -22,6 +23,41 @@ def load_events():
     except FileNotFoundError:
         pass
     return events
+
+
+def load_spans():
+    spans = []
+    try:
+        with open(SPAN_LOG_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    spans.append(json.loads(line))
+    except FileNotFoundError:
+        pass
+    return spans
+
+
+def print_span_stats():
+    spans = load_spans()
+    if not spans:
+        print("No spans logged yet.")
+        return
+
+    by_step = defaultdict(list)
+    for s in spans:
+        by_step[s["step"]].append(s)
+
+    print("=== PER-STEP COST & LATENCY (from spans.jsonl) ===")
+    for step, step_spans in by_step.items():
+        costs = [s["cost"] for s in step_spans]
+        latencies = [s["latency_seconds"] for s in step_spans]
+        total_cost = sum(costs)
+        avg_cost = total_cost / len(costs)
+        avg_latency = sum(latencies) / len(latencies)
+        print(f"  {step}: {len(step_spans)} calls, total cost ${total_cost:.6f}, "
+              f"avg cost ${avg_cost:.6f}, avg latency {avg_latency:.2f}s")
+    print()
 
 
 def print_stats():
@@ -95,4 +131,5 @@ def print_stats():
 
 
 if __name__ == "__main__":
+    print_span_stats()
     print_stats()
