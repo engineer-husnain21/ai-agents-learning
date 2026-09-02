@@ -25,12 +25,13 @@ embeddings_model = AzureOpenAIEmbeddings(
 
 def build_vectorstore(chunks):
     """
-    Wipes any old vector store and builds a fresh one from the given chunks.
-    This is what /upload calls — same "nothing of the old book survives"
-    rule as task 5.
+    Builds a fresh vector store from the given chunks. Instead of deleting
+    the old Chroma directory (which can fail on Windows if a file handle
+    is still held), we use a new, unique collection name each time — old
+    collections are simply abandoned and never queried again.
     """
-    if os.path.exists(CHROMA_DIR):
-        shutil.rmtree(CHROMA_DIR)
+    import uuid
+    collection_name = f"collection_{uuid.uuid4().hex[:8]}"
 
     docs = [
         Document(
@@ -43,17 +44,10 @@ def build_vectorstore(chunks):
     vectorstore = Chroma.from_documents(
         documents=docs,
         embedding=embeddings_model,
-        persist_directory=CHROMA_DIR
+        persist_directory=CHROMA_DIR,
+        collection_name=collection_name
     )
     return vectorstore
-
-
-def load_vectorstore():
-    return Chroma(
-        embedding_function=embeddings_model,
-        persist_directory=CHROMA_DIR
-    )
-
 
 def get_top_chunks_lc(vectorstore, question, top_n=3):
     """
