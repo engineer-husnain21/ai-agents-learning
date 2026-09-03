@@ -16,6 +16,7 @@ from app.answering_lc import generate_answer_lc
 from app.agent_tools import search_book, book_stats, set_agent_state
 from app.memory import init_db, save_turn, get_history
 from app.logging_lc import log_event, Timer
+from app.injection_screen import screen_chunks
 from app.config import HISTORY_LENGTH, CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M, LC_SIMILARITY_THRESHOLD
 
 app = FastAPI()
@@ -33,13 +34,17 @@ async def upload(file: UploadFile):
     text = raw_bytes.decode("utf-8")
 
     chunks = chunk_text_lc(text)
+    chunks = screen_chunks(chunks)
+    flagged_count = sum(1 for c in chunks if c["flagged"])
+
     state["vectorstore"] = build_vectorstore(chunks)
 
     set_agent_state(state["vectorstore"], file.filename, len(text), len(chunks))
 
     return {
         "message": f"Uploaded and processed '{file.filename}'",
-        "chunks_created": len(chunks)
+        "chunks_created": len(chunks),
+        "chunks_flagged_for_injection_patterns": flagged_count
     }
 
 
