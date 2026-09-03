@@ -1,9 +1,10 @@
 """
 main_lc.py — /upload, /ask, /ask_agent, /history, /stats.
-Task 10: every /ask call is logged as a structured event.
+Task 11: every LLM call gets a request_id + span log (rewrite, answer, retry_answer).
 Run with: uvicorn app.main_lc:app --reload --port 8002
 """
 
+import uuid
 from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
 from langgraph.prebuilt import create_react_agent
@@ -15,6 +16,7 @@ from app.answering_lc import generate_answer_lc
 from app.agent_tools import search_book, book_stats, set_agent_state
 from app.memory import init_db, save_turn, get_history
 from app.logging_lc import log_event, Timer
+from app.injection_screen import screen_chunks
 from app.config import HISTORY_LENGTH, CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M, LC_SIMILARITY_THRESHOLD
 
 app = FastAPI()
@@ -32,13 +34,17 @@ async def upload(file: UploadFile):
     text = raw_bytes.decode("utf-8")
 
     chunks = chunk_text_lc(text)
+    chunks = screen_chunks(chunks)
+    flagged_count = sum(1 for c in chunks if c["flagged"])
+
     state["vectorstore"] = build_vectorstore(chunks)
 
     set_agent_state(state["vectorstore"], file.filename, len(text), len(chunks))
 
     return {
         "message": f"Uploaded and processed '{file.filename}'",
-        "chunks_created": len(chunks)
+        "chunks_created": len(chunks),
+        "chunks_flagged_for_injection_patterns": flagged_count
     }
 
 
@@ -49,17 +55,19 @@ class AskRequest(BaseModel):
 
 @app.post("/ask")
 async def ask(request: AskRequest):
+    request_id = uuid.uuid4().hex[:12]
+
     with Timer() as request_timer:
         if state["vectorstore"] is None:
             return {"error": "No document has been uploaded yet. Use /upload first."}
 
         history = get_history(request.session_id, limit=HISTORY_LENGTH)
 
-        rewritten_question, rw_in, rw_out = rewrite_question_lc(request.question, history)
+        rewritten_question, rw_in, rw_out = rewrite_question_lc(request.question, history, request_id=request_id)
         was_rewritten = rewritten_question != request.question
         rewrite_cost = (rw_in / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
         rewrite_cost += (rw_out / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
-        llm_calls = 1 if history else 0  # rewrite only calls the model if there's history
+        llm_calls = 1 if history else 0
 
         top_chunks = get_top_chunks_lc(state["vectorstore"], rewritten_question)
         gate_score = round(top_chunks[0]["score"], 4) if top_chunks else 0
@@ -78,23 +86,27 @@ async def ask(request: AskRequest):
                 session_id=request.session_id, endpoint="/ask", question=request.question,
                 was_rewritten=was_rewritten, gate_score=gate_score, gate_passed=False,
                 outcome=outcome, retry_fired=False, retry_succeeded=None,
-                llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=None
+                llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=None,
+                request_id=request_id
             )
-            result = {
+            return {
                 "original_question": request.question, "rewritten_question": rewritten_question,
                 "gate_score": gate_score, "answer": answer_text, "sources": [],
                 "cost": round(total_cost, 6)
             }
-            return result
 
-        answer_text, chat_cost = generate_answer_lc(rewritten_question, top_chunks, history)
+        answer_text, chat_cost = generate_answer_lc(
+            rewritten_question, top_chunks, history, request_id=request_id, step="answer"
+        )
         llm_calls += 1
 
         outcome = "answered"
         if "does not contain an answer" in answer_text.lower():
             outcome = "refused_by_model"
             retry_fired = True
-            retry_answer, retry_cost = generate_answer_lc(rewritten_question, top_chunks, history)
+            retry_answer, retry_cost = generate_answer_lc(
+                rewritten_question, top_chunks, history, request_id=request_id, step="retry_answer"
+            )
             llm_calls += 1
             chat_cost += retry_cost
             answer_text = retry_answer
@@ -109,7 +121,8 @@ async def ask(request: AskRequest):
         session_id=request.session_id, endpoint="/ask", question=request.question,
         was_rewritten=was_rewritten, gate_score=gate_score, gate_passed=True,
         outcome=outcome, retry_fired=retry_fired, retry_succeeded=retry_succeeded,
-        llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=round(request_timer.elapsed, 3)
+        llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=round(request_timer.elapsed, 3),
+        request_id=request_id
     )
 
     return {
