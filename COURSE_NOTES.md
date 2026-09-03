@@ -20,10 +20,6 @@
 
 
 
-**## The comparison I noticed in my tasks to this one**
-
-
-
 **2.** I had already built most of these by hand in my RAG pipeline (tasks 1-5):
 
 
