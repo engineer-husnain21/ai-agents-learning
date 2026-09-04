@@ -1,35 +1,41 @@
 """
-main_lc.py — /upload, /ask, /ask_agent, /history, /stats.
-Task 11: every LLM call gets a request_id + span log (rewrite, answer, retry_answer).
+main_lc.py — Task 12: multi-document corpus with trust tiers.
+/upload ADDS a document. GET /documents lists them. DELETE /documents/{id}
+removes only that document's chunks. Citations name the document.
+Trust tiers control eligibility and preference — decided in CODE, not
+by asking the model to "be careful."
 Run with: uvicorn app.main_lc:app --reload --port 8002
 """
 
 import uuid
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, Form
 from pydantic import BaseModel
 from langgraph.prebuilt import create_react_agent
 
 from app.chunking_lc import chunk_text_lc
-from app.vectorstore_lc import build_vectorstore, get_top_chunks_lc
+from app.vectorstore_lc import get_vectorstore, add_document_chunks, delete_document_chunks, get_top_chunks_lc
 from app.rewriting_lc import rewrite_question_lc, chat_model
 from app.answering_lc import generate_answer_lc
 from app.agent_tools import search_book, book_stats, set_agent_state
 from app.memory import init_db, save_turn, get_history
 from app.logging_lc import log_event, Timer
 from app.injection_screen import screen_chunks
+from app.document_registry import init_registry_db, add_document, list_documents, get_document, delete_document
 from app.config import HISTORY_LENGTH, CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M, LC_SIMILARITY_THRESHOLD
 
 app = FastAPI()
 
-state = {
-    "vectorstore": None
-}
-
 init_db()
+init_registry_db()
+
+TRUST_LEVELS = ["verified", "unverified"]
 
 
 @app.post("/upload")
-async def upload(file: UploadFile):
+async def upload(file: UploadFile, trust_level: str = Form(default="unverified")):
+    if trust_level not in TRUST_LEVELS:
+        return {"error": f"trust_level must be one of {TRUST_LEVELS}"}
+
     raw_bytes = await file.read()
     text = raw_bytes.decode("utf-8")
 
@@ -37,20 +43,51 @@ async def upload(file: UploadFile):
     chunks = screen_chunks(chunks)
     flagged_count = sum(1 for c in chunks if c["flagged"])
 
-    state["vectorstore"] = build_vectorstore(chunks)
-
-    set_agent_state(state["vectorstore"], file.filename, len(text), len(chunks))
+    doc_id = add_document(file.filename, trust_level, len(chunks))
+    add_document_chunks(chunks, doc_id)
 
     return {
-        "message": f"Uploaded and processed '{file.filename}'",
+        "message": f"Added document '{file.filename}' to the corpus",
+        "doc_id": doc_id,
+        "trust_level": trust_level,
         "chunks_created": len(chunks),
         "chunks_flagged_for_injection_patterns": flagged_count
     }
 
 
+@app.get("/documents")
+async def get_documents():
+    return {"documents": list_documents()}
+
+
+@app.delete("/documents/{doc_id}")
+async def remove_document(doc_id: str):
+    doc = get_document(doc_id)
+    if doc is None:
+        return {"error": f"No document with doc_id '{doc_id}'"}
+
+    delete_document_chunks(doc_id)  # only this doc's vectors
+    delete_document(doc_id)          # only this doc's registry row
+
+    return {"message": f"Removed document '{doc['filename']}' (doc_id: {doc_id})"}
+
+
 class AskRequest(BaseModel):
     session_id: str
     question: str
+    trust_filter: str = "any"  # "any" | "verified_only"
+
+
+def build_citation(chunk):
+    doc = get_document(chunk["doc_id"])
+    filename = doc["filename"] if doc else "unknown document"
+    return {
+        "document": filename,
+        "doc_id": chunk["doc_id"],
+        "trust_level": doc["trust_level"] if doc else "unknown",
+        "chunk_id": chunk["chunk_id"],
+        "start_position": chunk["start_position"]
+    }
 
 
 @app.post("/ask")
@@ -58,9 +95,21 @@ async def ask(request: AskRequest):
     request_id = uuid.uuid4().hex[:12]
 
     with Timer() as request_timer:
-        if state["vectorstore"] is None:
-            return {"error": "No document has been uploaded yet. Use /upload first."}
+        all_docs = list_documents()
+        if not all_docs:
+            return {"error": "No documents have been uploaded yet. Use /upload first."}
 
+        # Trust tier eligibility: CODE decides which doc_ids are allowed to
+        # answer at all — this is not a prompt instruction to the model.
+        if request.trust_filter == "verified_only":
+            allowed_doc_ids = {d["doc_id"] for d in all_docs if d["trust_level"] == "verified"}
+        else:
+            allowed_doc_ids = {d["doc_id"] for d in all_docs}
+
+        if not allowed_doc_ids:
+            return {"error": "No documents match the requested trust filter."}
+
+        vectorstore = get_vectorstore()
         history = get_history(request.session_id, limit=HISTORY_LENGTH)
 
         rewritten_question, rw_in, rw_out = rewrite_question_lc(request.question, history, request_id=request_id)
@@ -69,7 +118,7 @@ async def ask(request: AskRequest):
         rewrite_cost += (rw_out / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
         llm_calls = 1 if history else 0
 
-        top_chunks = get_top_chunks_lc(state["vectorstore"], rewritten_question)
+        top_chunks = get_top_chunks_lc(vectorstore, rewritten_question, allowed_doc_ids=allowed_doc_ids)
         gate_score = round(top_chunks[0]["score"], 4) if top_chunks else 0
         gate_passed = top_chunks and top_chunks[0]["score"] >= LC_SIMILARITY_THRESHOLD
 
@@ -91,7 +140,7 @@ async def ask(request: AskRequest):
             )
             return {
                 "original_question": request.question, "rewritten_question": rewritten_question,
-                "gate_score": gate_score, "answer": answer_text, "sources": [],
+                "gate_score": gate_score, "answer": answer_text, "citations": [],
                 "cost": round(total_cost, 6)
             }
 
@@ -117,6 +166,8 @@ async def ask(request: AskRequest):
         total_cost = rewrite_cost + chat_cost
         save_turn(request.session_id, request.question, answer_text)
 
+    citations = [build_citation(c) for c in top_chunks]
+
     log_event(
         session_id=request.session_id, endpoint="/ask", question=request.question,
         was_rewritten=was_rewritten, gate_score=gate_score, gate_passed=True,
@@ -130,65 +181,8 @@ async def ask(request: AskRequest):
         "rewritten_question": rewritten_question,
         "gate_score": gate_score,
         "answer": answer_text,
-        "sources": [
-            {"chunk_id": c["chunk_id"], "start_position": c["start_position"]}
-            for c in top_chunks
-        ],
+        "citations": citations,
         "cost": round(total_cost, 6)
-    }
-
-
-SYSTEM_PROMPT = """You are a helpful assistant answering questions about an uploaded document.
-
-Rules:
-- For any question about the book's content, use the search_book tool. Answer ONLY from what it returns.
-- If search_book says "nothing relevant found in the document", say exactly that to the user — do not guess or use outside knowledge.
-- For questions about the book's size/structure (character count, chunk count, filename), use the book_stats tool.
-- Never answer a content question about the book without calling search_book first.
-- For greetings or small talk unrelated to the book, you may respond directly without calling any tool."""
-
-agent = create_react_agent(chat_model, tools=[search_book, book_stats], prompt=SYSTEM_PROMPT)
-
-
-@app.post("/ask_agent")
-async def ask_agent(request: AskRequest):
-    if state["vectorstore"] is None:
-        return {"error": "No document has been uploaded yet. Use /upload first."}
-
-    history = get_history(request.session_id, limit=HISTORY_LENGTH)
-
-    messages = []
-    for turn in history:
-        messages.append({"role": "user", "content": turn["question"]})
-        messages.append({"role": "assistant", "content": turn["answer"]})
-    messages.append({"role": "user", "content": request.question})
-
-    result = agent.invoke({"messages": messages})
-
-    tools_called = []
-    total_input_tokens = 0
-    total_output_tokens = 0
-
-    for msg in result["messages"]:
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            for tc in msg.tool_calls:
-                tools_called.append(tc["name"])
-        if hasattr(msg, "usage_metadata") and msg.usage_metadata:
-            total_input_tokens += msg.usage_metadata.get("input_tokens", 0)
-            total_output_tokens += msg.usage_metadata.get("output_tokens", 0)
-
-    answer_text = result["messages"][-1].content
-
-    cost = (total_input_tokens / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
-    cost += (total_output_tokens / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
-
-    save_turn(request.session_id, request.question, answer_text)
-
-    return {
-        "answer": answer_text,
-        "tools_called": tools_called,
-        "llm_calls": sum(1 for m in result["messages"] if hasattr(m, "usage_metadata") and m.usage_metadata),
-        "cost": round(cost, 6)
     }
 
 
