@@ -181,7 +181,7 @@ async def ask(request: AskRequest):
         was_rewritten=was_rewritten, gate_score=gate_score, gate_passed=True,
         outcome=outcome, retry_fired=retry_fired, retry_succeeded=retry_succeeded,
         llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=round(request_timer.elapsed, 3),
-        request_id=request_id
+        request_id=request_id, cited_documents=[{"doc_id": c["doc_id"], "trust_level": c["trust_level"]} for c in citations]
     )
 
     return {
