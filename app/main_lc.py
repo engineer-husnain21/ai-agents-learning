@@ -166,7 +166,15 @@ async def ask(request: AskRequest):
         total_cost = rewrite_cost + chat_cost
         save_turn(request.session_id, request.question, answer_text)
 
-    citations = [build_citation(c) for c in top_chunks]
+        citations = [build_citation(c) for c in top_chunks]
+
+    # Code-level signal (not relying on the model's wording): if the
+    # answer draws on more than one document, or documents at different
+    # trust levels, surface that explicitly.
+    distinct_doc_ids = {c["doc_id"] for c in citations}
+    distinct_trust_levels = {c["trust_level"] for c in citations}
+    multiple_sources_used = len(distinct_doc_ids) > 1
+    mixed_trust_levels = len(distinct_trust_levels) > 1
 
     log_event(
         session_id=request.session_id, endpoint="/ask", question=request.question,
@@ -182,9 +190,10 @@ async def ask(request: AskRequest):
         "gate_score": gate_score,
         "answer": answer_text,
         "citations": citations,
+        "multiple_sources_used": multiple_sources_used,
+        "mixed_trust_levels": mixed_trust_levels,
         "cost": round(total_cost, 6)
     }
-
 
 @app.get("/history/{session_id}")
 async def history(session_id: str):
