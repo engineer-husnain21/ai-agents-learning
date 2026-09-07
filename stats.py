@@ -130,6 +130,103 @@ def print_stats():
         print("  No retries logged yet.")
 
 
+def print_document_stats():
+    events = load_events()
+    if not events:
+        return
+
+    doc_usage = defaultdict(int)
+    tier_usage = defaultdict(int)
+
+    for e in events:
+        for doc in e.get("cited_documents", []):
+            key = f"{doc['doc_id']} (trust: {doc['trust_level']})"
+            doc_usage[key] += 1
+            tier_usage[doc["trust_level"]] += 1
+
+    if not doc_usage:
+        print("No document citations logged yet.")
+        return
+
+    total_citations = sum(doc_usage.values())
+
+    print("=== PER-DOCUMENT USAGE (which sources are earning their place) ===")
+    for doc, count in sorted(doc_usage.items(), key=lambda x: -x[1]):
+        pct = (count / total_citations) * 100
+        print(f"  {doc}: cited {count} times ({pct:.1f}% of all citations)")
+    print()
+    print("=== PER-TIER USAGE ===")
+    for tier, count in sorted(tier_usage.items(), key=lambda x: -x[1]):
+        pct = (count / total_citations) * 100
+        print(f"  {tier}: {count} citations ({pct:.1f}%)")
+    print()
+
+
+def print_document_stats():
+    events = load_events()
+    if not events:
+        return
+
+    doc_usage = defaultdict(int)
+    tier_usage = defaultdict(int)
+
+    for e in events:
+        for doc in e.get("cited_documents", []):
+            key = f"{doc['doc_id']} (trust: {doc['trust_level']})"
+            doc_usage[key] += 1
+            tier_usage[doc["trust_level"]] += 1
+
+    if not doc_usage:
+        print("No document citations logged yet.")
+        return
+
+    total_citations = sum(doc_usage.values())
+
+    print("=== PER-DOCUMENT USAGE (which sources are earning their place) ===")
+    for doc, count in sorted(doc_usage.items(), key=lambda x: -x[1]):
+        pct = (count / total_citations) * 100
+        print(f"  {doc}: cited {count} times ({pct:.1f}% of all citations)")
+    print()
+    print("=== PER-TIER USAGE ===")
+    for tier, count in sorted(tier_usage.items(), key=lambda x: -x[1]):
+        pct = (count / total_citations) * 100
+        print(f"  {tier}: {count} citations ({pct:.1f}%)")
+    print()
+
+
+def print_document_stats():
+    events = load_events()
+    if not events:
+        return
+
+    doc_usage = defaultdict(int)
+    tier_usage = defaultdict(int)
+
+    for e in events:
+        for doc in e.get("cited_documents", []):
+            key = f"{doc['doc_id']} (trust: {doc['trust_level']})"
+            doc_usage[key] += 1
+            tier_usage[doc["trust_level"]] += 1
+
+    if not doc_usage:
+        print("No document citations logged yet.")
+        return
+
+    total_citations = sum(doc_usage.values())
+
+    print("=== PER-DOCUMENT USAGE (which sources are earning their place) ===")
+    for doc, count in sorted(doc_usage.items(), key=lambda x: -x[1]):
+        pct = (count / total_citations) * 100
+        print(f"  {doc}: cited {count} times ({pct:.1f}% of all citations)")
+    print()
+    print("=== PER-TIER USAGE ===")
+    for tier, count in sorted(tier_usage.items(), key=lambda x: -x[1]):
+        pct = (count / total_citations) * 100
+        print(f"  {tier}: {count} citations ({pct:.1f}%)")
+    print()
+
+
 if __name__ == "__main__":
     print_span_stats()
+    print_document_stats()
     print_stats()

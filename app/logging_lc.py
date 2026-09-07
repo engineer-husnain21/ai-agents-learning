@@ -27,10 +27,13 @@ def log_event(
     llm_calls,
     cost,
     latency_seconds,
-    request_id=None
+    request_id=None,
+    cited_documents=None
 ):
     """
     outcome: "answered" | "refused_by_gate" | "refused_by_model"
+    cited_documents: list of {"doc_id", "trust_level"} actually used in
+    this answer (task 12) — lets stats.py report per-document/tier share.
     Never raises — a logging failure must never break the user's request.
     """
     try:
@@ -48,7 +51,8 @@ def log_event(
             "retry_succeeded": retry_succeeded,
             "llm_calls": llm_calls,
             "cost": cost,
-            "latency_seconds": latency_seconds
+            "latency_seconds": latency_seconds,
+            "cited_documents": cited_documents or []
         }
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")

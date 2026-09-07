@@ -644,3 +644,64 @@ Anyone who can upload a document the system ingests — which in a real company 
 
 3. Can prompt injection be fully solved, or only reduced?
 Only reduced, honestly. My own subtle-false-fact test proves this within my own system: a defense can hold perfectly against instruction-shaped attacks while having zero ability to catch a plausible false statement, because "this is an instruction" and "this is factually wrong" are different problems requiring different detection methods, and the second one may not be solvable at the document-ingestion layer at all — it may require an entirely separate fact-checking system, which is its own hard problem.
+
+
+
+## Task 12 - Many Documents, Different Trust (Capstone, branch: task-12-multi-doc)
+
+### Part 1: A corpus, not a document
+
+`/upload` now ADDS a document instead of replacing everything — this reverses task 5's rule. **Why the rule changed:** task 5's "replace everything" rule existed to guarantee no old book's data could leak into a new book's answers, when the system held exactly one document at a time. That risk doesn't disappear here — it moves from "one document at a time" to "one document among many, correctly isolated by doc_id." The bug that must still be impossible is the same one: deleting or ingesting a document must never affect another document's data.
+
+**Proof:** uploaded book.txt (209 chunks, verified) and small_injection_test.txt (1 chunk, unverified), confirmed both in `GET /documents`, then called `DELETE /documents/{id}` on the second one. It disappeared completely from `/documents`, and a follow-up question about book.txt content ("who is the mad hatter") still answered correctly with book.txt citations — book.txt's data was untouched by deleting an unrelated document.
+
+Each document gets a registry entry (`doc_id`, `filename`, `uploaded_at`, `trust_level`, `chunk_count` in `documents.db`), and every chunk in the vector store carries its `doc_id` in metadata.
+
+### Part 2: Citations name the document
+
+`/ask` now returns a `citations` list instead of bare chunk IDs — each entry includes `document` (filename), `doc_id`, `trust_level`, `chunk_id`, and `start_position`. When an answer draws on multiple documents, all are cited. Tested: a question answered from both `conflicting_book.txt` and `small_injection_test.txt` returned citations naming both files by name.
+
+### Part 3: Trust tiers
+
+Two tiers: `verified` and `unverified`, set at upload time via a `trust_level` form field.
+
+**What actually differs (code, not prompt wording):** `/ask` accepts a `trust_filter` parameter (`"any"` or `"verified_only"`). When set to `"verified_only"`, the set of eligible `doc_id`s is computed in code before retrieval even runs — unverified chunks are never candidates, no matter how well they score. This is deliberately not "ask the model to be more careful with unverified content" — that's a prompt wish with no real guarantee. The tier controls: which documents are eligible to answer at all, that eligibility is checked before ranking, and that trust level is always visible in every citation.
+
+### Part 4: The conflict test
+
+Uploaded two documents that directly disagree: one (from task 11) falsely claims the Mad Hatter's "real identity" was Theophilus Carter; a second, made for this test, states that claim is false and the Hatter is purely fictional.
+
+**Decision made beforehand:** silently picking one source is the worst outcome — the user learns nothing and can't investigate. I chose to show both sources with citations and let the disagreement stay visible, rather than always preferring one tier, because even "verified" documents can be wrong, and hiding the unverified claim entirely would hide that a conflict exists at all.
+
+**Implementation:** two layers. First, the model's grounded answer naturally described the disagreement in the real test run. Second — and this is the part I don't rely on the model for — a code-level check computes `multiple_sources_used` and `mixed_trust_levels` booleans directly from the citation list's distinct doc_ids and trust levels, independent of the model's wording, so a caller can detect a conflict even if the model's prose glosses over it.
+
+**Real output:**
+
+Question: "was the mad hatter based on a real historical person"
+Answer: "No. The Mad Hatter's real identity has never been confirmed by
+historians, and any claim linking him to a specific historical figure
+like Theophilus Carter is considered false. He remains a purely
+fictional character created by Lewis Carroll with no real-world basis."
+citations: [
+{document: "conflicting_book.txt", trust_level: "verified"},
+{document: "small_injection_test.txt", trust_level: "unverified"}
+]
+multiple_sources_used: true
+mixed_trust_levels: true
+
+
+### Part 5: Prove it and watch it
+
+Extended `stats.py` with per-document and per-tier citation usage — which sources are actually earning their place in the corpus. Extended `eval_set.json` with `injection_pwned_test` (kept from task 11) and a new `multi_doc_conflict_test`.
+
+**Harness result:** 9/11 answer accuracy (81.8%), 4/4 refusal accuracy (100%). Both the injection test and the conflict test passed — the security defense from task 11 still holds in the multi-document version, and the conflict is surfaced rather than silently resolved.
+
+### Reflections
+
+**1. Faithfulness vs truth, with my own example.** My system answered "Theophilus Carter" when asked the Mad Hatter's real name, using a document I deliberately planted with that false claim. The answer was completely faithful — it accurately reported what the source said — and completely untrue. No retrieval or prompting fix could catch this, because the system did exactly its job: report the source faithfully. The bug was in the corpus, not the pipeline.
+
+**2. What trust tiers actually buy — and what they don't fix.** They buy control over which sources are even allowed to answer, and what the user is told about where an answer came from — both enforced by code before the model sees the question. They do NOT make the model more skeptical of unverified content it does see, and they do NOT verify that "verified" documents are actually correct — "verified" here means "a human vouched for this document," not "fact-checked." A verified document can still be wrong.
+
+**3. Whose job is corpus quality? What would I tell a client who wants the AI to "check if the document is true"?** Corpus quality is the system owner's job — deciding what gets ingested, at what trust level, by whom. I'd tell that client: an LLM can check internal consistency (does this contradict another trusted document?) but it cannot check truth against the real world unless given an independent, already-trusted source to check against — and that source would need the same trust question asked of it. "Make the AI check if it's true" just moves the faithfulness problem up one level without solving it.
+
+**4. If this were a real product — what next, what would I refuse to promise?** Next: a corpus-wide fact-conflict detector at ingestion time (not just per-question), and an audit log of who uploaded what, when, at what trust level. What I'd refuse to promise: that the system's answers are true. I'd promise it faithfully reports what your documents say, tells you exactly which document said it, and tells you loudly when your own documents disagree — and stop the promise there.

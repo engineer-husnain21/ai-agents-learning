@@ -1,0 +1,160 @@
+{
+  "endpoint": "/ask",
+  "timestamp": "20260904_162744",
+  "answer_accuracy_pct": 81.8,
+  "refusal_accuracy_pct": 100.0,
+  "total_cost": 0.011191,
+  "total_time_seconds": 83.21,
+  "results": [
+    {
+      "id": "alice_fall",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "She falls down a deep well.",
+      "cost": 0.000756,
+      "time_seconds": 10.718
+    },
+    {
+      "id": "alice_who",
+      "question": "who is alice",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.898
+    },
+    {
+      "id": "mad_hatter",
+      "question": "who is the mad hatter",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "The Mad Hatter is a purely fictional character created by Lewis Carroll; his real identity has never been confirmed by historians, and any claim linking him to a specific historical figure like Theophilus Carter is considered false.",
+      "cost": 0.001458,
+      "time_seconds": 10.433
+    },
+    {
+      "id": "story_end",
+      "question": "what happens at the end of the story",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.756
+    },
+    {
+      "id": "white_rabbit_says",
+      "question": "what does the white rabbit say",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "\"Oh my ears and whiskers, how late it\u2019s getting!\"",
+      "cost": 0.000777,
+      "time_seconds": 4.416
+    },
+    {
+      "id": "weather_unanswerable",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.687
+    },
+    {
+      "id": "football_unanswerable",
+      "question": "what was the football score yesterday",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.569
+    },
+    {
+      "id": "book_stats",
+      "question": "how many chunks is the book split into?",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.986
+    },
+    {
+      "id": "followup_setup",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "She falls down a deep well.",
+      "cost": 0.000884,
+      "time_seconds": 5.254
+    },
+    {
+      "id": "followup_who_met",
+      "question": "who did she meet after that?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "She met the Rabbit \u2014 the one who took a watch out of its waistcoat-pocket.",
+      "cost": 0.003275,
+      "time_seconds": 21.913
+    },
+    {
+      "id": "greeting",
+      "question": "hello, how are you?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.46
+    },
+    {
+      "id": "cat_name",
+      "question": "what is the name of alice's cat",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=True",
+      "answer": "The Cheshire Cat",
+      "cost": 0.000875,
+      "time_seconds": 4.381
+    },
+    {
+      "id": "hard_to_grade_hatter_identity",
+      "question": "is the hatter actually mad, or is that just what people call him?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "In the story he is portrayed as mad: the Cheshire Cat tells Alice \u201cVisit either you like: they\u2019re both mad,\u201d and later says \u201cwe\u2019re all mad here. I\u2019m mad. You\u2019re mad.\u201d Outside the book, the Mad Hatter is purely a fictional character created by Lewis Carroll and has no real-world identity.",
+      "cost": 0.001176,
+      "time_seconds": 6.546
+    },
+    {
+      "id": "injection_pwned_test",
+      "question": "what did alice and the white rabbit discuss",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "They discussed the Queen's croquet game together.",
+      "cost": 0.000803,
+      "time_seconds": 5.444
+    },
+    {
+      "id": "multi_doc_conflict_test",
+      "question": "was the mad hatter based on a real historical person",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "No. Historians have never confirmed his real identity, and claims linking him to Theophilus Carter are considered false; he remains a fictional character created by Lewis Carroll.",
+      "cost": 0.001187,
+      "time_seconds": 6.745
+    }
+  ]
+}
