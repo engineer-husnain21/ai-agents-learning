@@ -1,0 +1,140 @@
+{
+  "endpoint": "/ask_agent",
+  "timestamp": "20260827_155021",
+  "answer_accuracy_pct": 88.9,
+  "refusal_accuracy_pct": 50.0,
+  "total_cost": 0.017518,
+  "total_time_seconds": 99.27,
+  "results": [
+    {
+      "id": "alice_fall",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "She falls down a deep well \u2014 \"Down, down, down.\" As she goes she passes cupboards and bookshelves; at the end she comes down \"upon a heap of sticks and dry leaves,\" unhurt.",
+      "cost": 0.001155,
+      "time_seconds": 9.495
+    },
+    {
+      "id": "alice_who",
+      "question": "who is alice",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "nothing relevant found in the document",
+      "cost": 0.000382,
+      "time_seconds": 5.809
+    },
+    {
+      "id": "mad_hatter",
+      "question": "who is the mad hatter",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "In this book the Mad Hatter is a character in Chapter VII, \u201cA Mad Tea-Party.\u201d He sits at a tea table with the March Hare and a Dormouse at the March Hare\u2019s house (the three crowding one corner of a large table). At the tea-party he behaves eccentrically; later in the story he appears in the court and, trembling, gives evidence to the King, saying \u201cI\u2019m a poor man, your Majesty\u2026 and I hadn\u2019t begun my tea\u2026 and what with the bread-and-butter getting so thin\u2014and the twinkling of the tea\u2014.\u201d",
+      "cost": 0.001706,
+      "time_seconds": 8.151
+    },
+    {
+      "id": "story_end",
+      "question": "what happens at the end of the story",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "nothing relevant found in the document",
+      "cost": 0.000524,
+      "time_seconds": 4.842
+    },
+    {
+      "id": "white_rabbit_says",
+      "question": "what does the white rabbit say",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "Here are the lines the search returned that the White Rabbit says:\n\n- \u201cOh my ears and whiskers, how late it\u2019s getting!\u201d  \n- \u201cIt\u2019s\u2014it\u2019s a very fine day!\u201d  \n- \u201cHush! Hush!\u201d (in a low, hurried tone)  \n- \u201cShe\u2019s under sentence of execution.\u201d (whispered into Alice\u2019s ear)  \n- \u201cDid you say \u2018What a pity!\u2019?\u201d  \n- \u201cShe boxed the Queen\u2019s ears\u2014\u201d  \n- \u201cOh, hush!\u201d (whispered in a frightened tone)  \n- \u201cThe Queen will hear you!\u201d",
+      "cost": 0.001574,
+      "time_seconds": 9.519
+    },
+    {
+      "id": "weather_unanswerable",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": false,
+      "detail": "refused=False",
+      "answer": "I don\u2019t have your location \u2014 tell me the city or ZIP (and whether you want current conditions, an hourly forecast, or chances of rain) and I\u2019ll give you the weather for today.",
+      "cost": 0.000565,
+      "time_seconds": 3.786
+    },
+    {
+      "id": "football_unanswerable",
+      "question": "what was the football score yesterday",
+      "type": "refuse",
+      "correct": false,
+      "detail": "refused=False",
+      "answer": "Do you mean American football or soccer (association football)? Which teams or league are you asking about?\n\nI don\u2019t have real\u2011time access to live scores, so I can\u2019t look up yesterday\u2019s result myself \u2014 but if you tell me the teams or league I can guide you to reliable sources (ESPN, BBC Sport, official league app) or tell you how to search for that specific match.",
+      "cost": 0.000903,
+      "time_seconds": 5.135
+    },
+    {
+      "id": "book_stats",
+      "question": "how many chunks is the book split into?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "The uploaded book (book.txt) is split into 209 chunks.",
+      "cost": 0.00025,
+      "time_seconds": 3.457
+    },
+    {
+      "id": "followup_setup",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "She falls down a deep well \u2014 coming to rest on a heap of sticks and dry leaves \u2014 and then finds herself in a long, low hall lit by a row of lamps with doors all round.",
+      "cost": 0.000893,
+      "time_seconds": 6.137
+    },
+    {
+      "id": "followup_who_met",
+      "question": "who did she meet after that?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "She sees the White Rabbit hurrying down the passage \u2014 \u201cOh my ears and whiskers, how late it\u2019s getting!\u201d \u2014 and runs after it.",
+      "cost": 0.006792,
+      "time_seconds": 25.852
+    },
+    {
+      "id": "greeting",
+      "question": "hello, how are you?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "I'm doing well, thanks! How can I help you today \u2014 questions about the uploaded book or something else?",
+      "cost": 0.000401,
+      "time_seconds": 2.524
+    },
+    {
+      "id": "cat_name",
+      "question": "what is the name of alice's cat",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "Her cat is called the Cheshire Cat.",
+      "cost": 0.00071,
+      "time_seconds": 5.761
+    },
+    {
+      "id": "hard_to_grade_hatter_identity",
+      "question": "is the hatter actually mad, or is that just what people call him?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "In the book he\u2019s presented as mad. The Cheshire Cat tells Alice \u201cVisit either you like: they\u2019re both mad,\u201d and later \u201cwe\u2019re all mad here. I\u2019m mad. You\u2019re mad.\u201d The chapter itself is called \u201cA Mad Tea-Party,\u201d and the Hatter\u2019s behaviour (nonsensical talk at the tea and his trembling, confused testimony in the trial) reinforces that portrayal.",
+      "cost": 0.001663,
+      "time_seconds": 8.806
+    }
+  ]
+}
