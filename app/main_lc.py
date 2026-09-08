@@ -18,6 +18,7 @@ from app.memory import init_db, save_turn, get_history
 from app.logging_lc import log_event, Timer
 from app.injection_screen import screen_chunks
 from app.content_hash import compute_content_hash
+from app.contradiction_detector import check_new_document_for_contradictions
 from app.document_registry import (
     init_registry_db, add_document, approve_document, reject_document,
     demote_document, list_documents, get_document, delete_document
@@ -52,13 +53,16 @@ async def upload(file: UploadFile, trust_level: str = Form(default="unverified")
     doc_id = add_document(file.filename, trust_level, len(chunks), content_hash)
     add_document_chunks(chunks, doc_id)
     _document_text_cache[doc_id] = text
+    contradiction_flags = check_new_document_for_contradictions(chunks, doc_id)
 
     return {
         "message": f"Added document '{file.filename}' as PENDING — not eligible for verified-only questions until approved",
         "doc_id": doc_id,
         "status": "pending",
         "chunks_created": len(chunks),
-        "chunks_flagged_for_injection_patterns": flagged_count
+        "chunks_flagged_for_injection_patterns": flagged_count,
+        "contradictions_flagged": len(contradiction_flags),
+        "contradiction_details": contradiction_flags
     }
 
 
