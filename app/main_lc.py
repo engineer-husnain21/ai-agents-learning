@@ -110,6 +110,45 @@ async def get_documents():
     return {"documents": list_documents()}
 
 
+@app.put("/documents/{doc_id}/content")
+async def update_document_content(doc_id: str, file: UploadFile):
+    """
+    Task 13, corrected per testing: since documents arrive as uploaded
+    bytes (no persistent disk path the server can re-read), content can
+    only change through OUR API — there is no out-of-band file to poll.
+    So the demotion check happens at WRITE time (here), not on every read.
+    If the document was verified, changing its content demotes it.
+    """
+    doc = get_document(doc_id)
+    if doc is None:
+        return {"error": f"No document with doc_id '{doc_id}'"}
+
+    raw_bytes = await file.read()
+    new_text = raw_bytes.decode("utf-8")
+    new_hash = compute_content_hash(new_text)
+
+    was_verified = doc["status"] == "verified"
+    content_changed = new_hash != doc["content_hash"]
+
+    delete_document_chunks(doc_id)
+    new_chunks = chunk_text_lc(new_text)
+    new_chunks = screen_chunks(new_chunks)
+    add_document_chunks(new_chunks, doc_id)
+    _document_text_cache[doc_id] = new_text
+
+    if was_verified and content_changed:
+        demote_document(doc_id)
+        new_status = "demoted"
+    else:
+        new_status = doc["status"]
+
+    return {
+        "message": f"Content updated for '{doc['filename']}'",
+        "content_changed": content_changed,
+        "was_verified": was_verified,
+        "new_status": new_status
+    }
+
 @app.delete("/documents/{doc_id}")
 async def remove_document(doc_id: str):
     doc = get_document(doc_id)
