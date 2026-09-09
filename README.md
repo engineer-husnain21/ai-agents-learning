@@ -705,3 +705,42 @@ Extended `stats.py` with per-document and per-tier citation usage — which sour
 **3. Whose job is corpus quality? What would I tell a client who wants the AI to "check if the document is true"?** Corpus quality is the system owner's job — deciding what gets ingested, at what trust level, by whom. I'd tell that client: an LLM can check internal consistency (does this contradict another trusted document?) but it cannot check truth against the real world unless given an independent, already-trusted source to check against — and that source would need the same trust question asked of it. "Make the AI check if it's true" just moves the faithfulness problem up one level without solving it.
 
 **4. If this were a real product — what next, what would I refuse to promise?** Next: a corpus-wide fact-conflict detector at ingestion time (not just per-question), and an audit log of who uploaded what, when, at what trust level. What I'd refuse to promise: that the system's answers are true. I'd promise it faithfully reports what your documents say, tells you exactly which document said it, and tells you loudly when your own documents disagree — and stop the promise there.
+
+
+## Task 13 - Who Decides What's Verified? (branch: task-13-verification)
+
+Plan approved with 4 additions (see PLAN.md) before any code was written, per the standing rule. Full plan, decisions, and corrections live there — this section documents what got built and proven.
+
+### What "done" looks like — confirmed
+
+- A freshly uploaded document is `pending` and cannot answer `verified_only` questions until explicitly approved. Tested and confirmed.
+- Approval records approver, timestamp, and a content hash of exactly what was approved. Tested.
+- Rejection requires a reason; tested end to end.
+- A verified document whose content changes loses verified status automatically. Originally planned as a read-time check; testing revealed the server has no persistent disk path to re-poll (uploads only ever arrive as bytes over HTTP), so the design correctly moved to a write-time check via a new `PUT /documents/{id}/content` endpoint — this correction is documented in PLAN.md itself.
+- `stats.py` shows per-state document counts and approval latency.
+
+### Day 2 review corrections (all four applied)
+
+1. **PLAN.md now matches the code** — added a "what I assumed / what I found / what changed" paragraph documenting the read-to-write correction, and fixed the plan's recurring date error.
+2. **The `PUT` content-update endpoint now runs the full ingestion pipeline** — injection screening AND the contradiction check, not just the former. Changed content is a new version of the document and gets the same scrutiny a new upload gets.
+3. **The contradiction detector's candidate stage switched from keyword overlap to embeddings** — the same fix as task 2 → task 3, reapplied. Proof: a fake fact ("Alice's cat was named Fluffy") worded completely differently from the real fact ("Dinah") was invisible to keyword overlap (near-zero shared words) but was caught by semantic similarity once the threshold was tuned to 0.15 — the LLM judge then correctly quoted both conflicting claims: *"Alice's pet cat was named Fluffy vs Alice's pet cat was named Dinah."*
+4. **Housekeeping** — moved test fixtures out of the repo root, untracked one-off request bodies (`approve.json`, `reject.json`) via `.gitignore`.
+
+### The contradiction detector, honestly
+
+Even after switching to embeddings, the similarity threshold needed real tuning (0.30 missed the paraphrased contradiction; 0.15 caught it) — a real precision/recall tradeoff, not a solved problem. A looser threshold catches more true contradictions but also surfaces more unrelated "candidates" for the LLM to judge (and pay for). I chose 0.15 based on this one test case; a production system would need many more labeled examples to tune this properly, and I'm noting that as a real limitation rather than claiming the detector is complete.
+
+### Harness
+
+Fresh baseline run after a full corpus reset: 8/11 answer accuracy (72.7%), 4/7 refusal accuracy (57.1%). The three new eligibility test cases (`pending_not_verified_eligible`, `rejected_not_eligible`, `demoted_loses_eligibility`) show as failing in the automated harness — a harness limitation, not a system bug: `eval.py` doesn't yet know how to pass `trust_filter=verified_only` or set up a document in a specific state before asking. All three were manually verified working correctly during development: a pending document was refused under `verified_only`, a rejected document was refused, and a demoted document (content changed via `PUT`) was refused. Extending `eval.py` to script these setups is a natural next step, noted but not done in this task's window.
+
+### Reflections
+
+**1. Why can't automated cross-referencing be the final decider? (circularity, in my own words)**
+Any automated check needs something to check against — "does this match a trusted source?" But that trusted source needed to become trusted somehow too. If an algorithm decided that, you'd ask what IT checked against, and so on. Follow that chain far enough and it ends somewhere that isn't another algorithm — a person who looked at the source and vouched for it. Automation can compare things to each other forever; it can't be the origin of trust, because trust starts with someone taking accountability, and an algorithm can't be held accountable the way a named person can.
+
+**2. What does "approved by Sara on 4 Sep, version a3f9" give a company that `verified: true` doesn't?**
+Accountability and auditability. `verified: true` is a flag with no history — if it's wrong, there's no way to know who to ask, when it was decided, or whether the document has silently changed since. "Approved by Sara on 4 Sep, version a3f9" answers exactly those questions: WHO to ask, WHEN the judgment was made, and WHICH exact version was actually reviewed. A boolean can't be interrogated later; a record can.
+
+**3. Which was harder — building it, or planning it before building? Be honest.**
+Planning was harder, and more valuable. Building the endpoints was mostly familiar work by this point. The plan forced me to resolve ambiguity before I had code to hide behind — the hash-timing question, in particular, I could have "solved" in code without ever really deciding who could change content and how, and I'd have shipped the wrong design with more confidence than it deserved, because the code would have looked like it worked in casual testing. Writing the plan first is what surfaced that I hadn't actually answered the prerequisite question — the review caught it before I'd built the wrong thing, not after. That tells me what to practice: sitting with a design decision longer before typing, instead of letting code-that-runs stand in for code-that's-right.
