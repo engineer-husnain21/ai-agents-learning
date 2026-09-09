@@ -226,7 +226,62 @@ def print_document_stats():
     print()
 
 
+def print_document_state_stats():
+    """
+    Task 13, part 5: how many documents sit in each state, and how long
+    approvals take (approved_at - uploaded_at).
+    """
+    import sqlite3
+    from datetime import datetime
+
+    try:
+        conn = sqlite3.connect("documents.db")
+        cursor = conn.execute(
+            "SELECT status, uploaded_at, approved_at FROM documents"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception:
+        print("No documents.db found yet.")
+        return
+
+    if not rows:
+        print("No documents registered yet.")
+        return
+
+    state_counts = defaultdict(int)
+    latencies = []
+
+    for status, uploaded_at, approved_at in rows:
+        state_counts[status] += 1
+        if approved_at:
+            try:
+                uploaded_dt = datetime.fromisoformat(uploaded_at)
+                approved_dt = datetime.fromisoformat(approved_at)
+                latency_seconds = (approved_dt - uploaded_dt).total_seconds()
+                latencies.append(latency_seconds)
+            except Exception:
+                pass
+
+    print("=== DOCUMENT STATES ===")
+    total = len(rows)
+    for status, count in sorted(state_counts.items(), key=lambda x: -x[1]):
+        pct = (count / total) * 100
+        print(f"  {status}: {count} ({pct:.1f}%)")
+    print()
+
+    if latencies:
+        avg_latency = sum(latencies) / len(latencies)
+        print(f"Approval latency: avg {avg_latency:.1f}s, "
+              f"min {min(latencies):.1f}s, max {max(latencies):.1f}s "
+              f"(n={len(latencies)})")
+    else:
+        print("No approval/rejection latency data yet.")
+    print()
+
+
 if __name__ == "__main__":
     print_span_stats()
     print_document_stats()
+    print_document_state_stats()
     print_stats()

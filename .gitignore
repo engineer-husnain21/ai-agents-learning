@@ -4,3 +4,10 @@ store/
 memory.db
 ask.json
 embeddings.json
+chroma_db/
+documents.db
+events.jsonl
+spans.jsonl
+approve.json
+reject.json
+ask.json
