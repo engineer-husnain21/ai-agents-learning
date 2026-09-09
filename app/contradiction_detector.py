@@ -21,7 +21,7 @@ from app.vectorstore_lc import get_vectorstore
 from app.document_registry import list_documents
 
 FLAGS_PATH = "contradiction_flags.jsonl"
-SIMILARITY_CANDIDATE_THRESHOLD = 0.30  # semantic similarity, not keyword overlap
+SIMILARITY_CANDIDATE_THRESHOLD = 0.15  # semantic similarity, not keyword overlap
 
 
 def _llm_judge(text_a, text_b):
