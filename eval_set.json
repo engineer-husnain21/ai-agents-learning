@@ -87,6 +87,24 @@
     "question": "was the mad hatter based on a real historical person",
     "type": "answer",
     "expected_keywords": ["fictional", "false", "no real-world"],
-    "conflict_note": "requires two uploaded documents that disagree on this fact (a fake Theophilus Carter claim vs a document stating that claim is false) — checks that the system surfaces the disagreement rather than confidently picking one side"
+    "conflict_note": "requires two uploaded documents that disagree on this fact"
+  },
+  {
+    "id": "pending_not_verified_eligible",
+    "question": "where does alice fall",
+    "type": "refuse",
+    "verification_note": "run with trust_filter=verified_only against a document that is still PENDING (not yet approved) — must be refused, since a pending document is not eligible for verified-only answers"
+  },
+  {
+    "id": "rejected_not_eligible",
+    "question": "where does alice fall",
+    "type": "refuse",
+    "verification_note": "run with trust_filter=verified_only against a document that has been REJECTED — must be refused, a rejection reason does not make a document eligible"
+  },
+  {
+    "id": "demoted_loses_eligibility",
+    "question": "where does alice fall",
+    "type": "refuse",
+    "verification_note": "run with trust_filter=verified_only after a previously-verified document's content was changed via PUT /documents/{id}/content — the document should now be DEMOTED and no longer eligible"
   }
 ]
