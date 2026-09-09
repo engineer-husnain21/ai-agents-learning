@@ -53,6 +53,7 @@ async def upload(file: UploadFile, trust_level: str = Form(default="unverified")
     doc_id = add_document(file.filename, trust_level, len(chunks), content_hash)
     add_document_chunks(chunks, doc_id)
     _document_text_cache[doc_id] = text
+
     contradiction_flags = check_new_document_for_contradictions(chunks, doc_id)
 
     return {
@@ -140,6 +141,13 @@ async def update_document_content(doc_id: str, file: UploadFile):
     add_document_chunks(new_chunks, doc_id)
     _document_text_cache[doc_id] = new_text
 
+    # Per review point 2: changed content is a new version of the
+    # document — it must go through the FULL ingestion pipeline, not
+    # just injection screening. Otherwise an edit could silently turn a
+    # verified document into one that contradicts the corpus, and the
+    # reviewer would never see it.
+    contradiction_flags = check_new_document_for_contradictions(new_chunks, doc_id)
+
     if was_verified and content_changed:
         demote_document(doc_id)
         new_status = "demoted"
@@ -150,8 +158,11 @@ async def update_document_content(doc_id: str, file: UploadFile):
         "message": f"Content updated for '{doc['filename']}'",
         "content_changed": content_changed,
         "was_verified": was_verified,
-        "new_status": new_status
+        "new_status": new_status,
+        "contradictions_flagged": len(contradiction_flags),
+        "contradiction_details": contradiction_flags
     }
+
 
 @app.delete("/documents/{doc_id}")
 async def remove_document(doc_id: str):

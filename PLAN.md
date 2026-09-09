@@ -25,7 +25,19 @@
 
 The review's point: the "every use vs. periodic" question has a prerequisite — **who can change a document's content, and through what path?**
 
-**My answer:** in this system, content can currently change two ways — (a) through the API (there isn't currently an "edit" endpoint, so this path doesn't exist yet), and (b) by directly editing the file on disk, which is exactly how my own test ("manually editing a verified document's content") simulates a real-world edit. Since path (b) is possible and is the actual test case the task specifies, I cannot assume content only changes through code I control. **Decision: check the content hash on read** (when a verified document is used to answer a query), not only on write — this is cheap at the current corpus size (a handful of documents, small files), and it's the only approach that catches an out-of-band edit.
+**What I assumed:** I assumed documents could be edited out-of-band on disk (simulating a real file being changed by someone outside the API), so I planned to check the content hash on READ — re-hashing the document's cached text every time it was used to answer a query.
+
+**What I found:** when I actually tested this by editing a local test file and re-asking a question, nothing happened — the document stayed "verified." The reason: the server never keeps a live path to the uploaded file. `/upload` only ever receives raw bytes over HTTP; there is no ongoing reference to a file on disk that the server can re-open and re-read. Editing my local copy had zero effect on the server, because the server was never watching that file in the first place.
+
+**What changed:** the read-time check was solving a problem that doesn't exist in this architecture. The only way a document's content can actually change, given how this system is built, is through the system's own API. So I built a new `PUT /documents/{id}/content` endpoint — content changes go through this endpoint, and the demotion check happens at WRITE time, right there, not on every read. This matches the review's own logic: "if content only changes through your API, check at write time and you're done — no polling, no per-read cost."
+
+## 3b. Update per review (Day 2, point 2): the write path was incomplete
+
+The first version of `PUT /documents/{id}/content` re-ran injection screening on the new content but NOT the contradiction check. That's wrong — changed content is a new version of the document, and it deserves the same scrutiny a brand-new upload gets. Fixed: content updates now go through the full ingestion pipeline (injection screen + contradiction check against the verified corpus), not half of it.
+
+## 3c. Update per review (Day 2, point 3): the contradiction detector's candidate stage was reusing a mistake I already fixed once
+
+Word-overlap as the candidate filter has the exact weakness word-matching had in task 2 — it misses paraphrases ("doctor" vs "physician" then; two chunks stating the same fact in different wording now). Task 3 fixed this by switching from word matching to embeddings, because embeddings capture meaning, not exact words. The contradiction detector already imports the vector store for its initial retrieval — the fix is to use that retrieval's semantic similarity score as the candidate filter, instead of layering a word-overlap check on top of it that reintroduces the weakness embeddings were supposed to solve.
 
 ## 4. What I'll test
 
@@ -48,4 +60,4 @@ The review's point: the "every use vs. periodic" question has a prerequisite —
 - Build order changed: demotion/state-machine before the contradiction detector (done above).
 
 ---
-*Plan approved by senior on 31 August 2026, with the above 4 additions folded in. Two-day build window starts when this file and the diagram are pushed to `task-13-verification`.*
+*Plan approved by senior on 31 August 2026, with the above 4 additions folded in. Two-day build window started when this file and the diagram were pushed on 31 August 2026. Day 2 corrections (this update) made on 8 September 2026.*

@@ -1,32 +1,27 @@
 """
-contradiction_detector.py — Task 13, addition #4 from review.
+contradiction_detector.py — Task 13, addition #4 from review, corrected
+Day 2 per review point 3.
 
 Two layers, per review guidance:
-  Layer 1 (code): keyword overlap finds CANDIDATE pairs — chunks that are
-  about the same topic. This only proves relatedness, not disagreement
-  (two agreeing passages about the same topic overlap heavily too).
+  Layer 1 (code): the vector store's own semantic similarity search finds
+  CANDIDATE pairs — chunks about the same topic. This is the SAME fix as
+  task 3 (embeddings replacing word-matching, because word overlap missed
+  paraphrases like "doctor" vs "physician"). The original version of this
+  file used keyword overlap for candidates and had that exact weakness —
+  fixed here by reusing the embeddings we already have.
   Layer 2 (one LLM call per candidate): asks "do these contradict?
   yes/no, quote the claims." This is a detector, not a decider.
 A human still makes the final call — flags are surfaced, never
 auto-resolved.
 """
 
-import re
 import json
 from app.rewriting_lc import chat_model
 from app.vectorstore_lc import get_vectorstore
 from app.document_registry import list_documents
 
 FLAGS_PATH = "contradiction_flags.jsonl"
-OVERLAP_THRESHOLD = 0.25  # loose on purpose — this only picks candidates
-
-
-def _keyword_overlap(text_a, text_b):
-    words_a = set(re.findall(r"[a-zA-Z']+", text_a.lower()))
-    words_b = set(re.findall(r"[a-zA-Z']+", text_b.lower()))
-    if not words_a or not words_b:
-        return 0
-    return len(words_a & words_b) / len(words_a | words_b)
+SIMILARITY_CANDIDATE_THRESHOLD = 0.30  # semantic similarity, not keyword overlap
 
 
 def _llm_judge(text_a, text_b):
@@ -47,11 +42,10 @@ Answer:"""
 
 def check_new_document_for_contradictions(new_chunks, new_doc_id):
     """
-    Compares a newly uploaded document's chunks against the EXISTING
-    VERIFIED corpus only (per plan — pending/rejected/demoted docs
-    aren't the trusted baseline to check against).
-    Returns the list of flagged contradictions (also appended to
-    contradiction_flags.jsonl for the reviewer to see).
+    Compares a newly uploaded (or updated) document's chunks against the
+    EXISTING VERIFIED corpus only. Returns the list of flagged
+    contradictions (also appended to contradiction_flags.jsonl for the
+    reviewer to see).
     """
     all_docs = list_documents()
     verified_doc_ids = {d["doc_id"] for d in all_docs if d["status"] == "verified"}
@@ -62,16 +56,19 @@ def check_new_document_for_contradictions(new_chunks, new_doc_id):
     flags = []
 
     for new_chunk in new_chunks:
+        # Layer 1: semantic similarity finds candidates — catches
+        # paraphrases that keyword overlap would miss (task 2 -> 3 fix,
+        # reapplied here).
         results = vectorstore.similarity_search_with_relevance_scores(new_chunk["text"], k=5)
-        for doc, _score in results:
+        for doc, relevance_score in results:
             existing_doc_id = doc.metadata.get("doc_id")
             if existing_doc_id not in verified_doc_ids:
                 continue
-
-            overlap = _keyword_overlap(new_chunk["text"], doc.page_content)
-            if overlap < OVERLAP_THRESHOLD:
+            if relevance_score < SIMILARITY_CANDIDATE_THRESHOLD:
                 continue
 
+            # Layer 2: LLM judges whether this candidate is an actual
+            # contradiction, not just an agreeing passage on the same topic.
             verdict = _llm_judge(new_chunk["text"], doc.page_content)
             if verdict.upper().startswith("YES"):
                 flags.append({
@@ -79,6 +76,7 @@ def check_new_document_for_contradictions(new_chunks, new_doc_id):
                     "new_chunk_id": new_chunk["chunk_id"],
                     "existing_doc_id": existing_doc_id,
                     "existing_chunk_id": doc.metadata.get("chunk_id"),
+                    "similarity_score": round(relevance_score, 4),
                     "verdict": verdict
                 })
 
@@ -88,6 +86,6 @@ def check_new_document_for_contradictions(new_chunks, new_doc_id):
                 for flag in flags:
                     f.write(json.dumps(flag) + "\n")
         except Exception:
-            pass
+            pass  # flagging must never break the upload itself
 
     return flags
