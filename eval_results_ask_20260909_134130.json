@@ -1,0 +1,190 @@
+{
+  "endpoint": "/ask",
+  "timestamp": "20260909_134130",
+  "answer_accuracy_pct": 72.7,
+  "refusal_accuracy_pct": 57.1,
+  "total_cost": 0.010998,
+  "total_time_seconds": 67.78,
+  "results": [
+    {
+      "id": "alice_fall",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "She falls down a deep well.",
+      "cost": 0.001143,
+      "time_seconds": 6.513
+    },
+    {
+      "id": "alice_who",
+      "question": "who is alice",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.844
+    },
+    {
+      "id": "mad_hatter",
+      "question": "who is the mad hatter",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "He is the Hatter \u2014 one of the characters at the Mad Tea-Party, sitting at the table with the March Hare and the Dormouse; later he is brought before the Queen\u2019s court, nervous and trembling while giving evidence.",
+      "cost": 0.001354,
+      "time_seconds": 7.645
+    },
+    {
+      "id": "story_end",
+      "question": "what happens at the end of the story",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.457
+    },
+    {
+      "id": "white_rabbit_says",
+      "question": "what does the white rabbit say",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "\"Oh my ears and whiskers, how late it\u2019s getting!\"",
+      "cost": 0.001023,
+      "time_seconds": 4.291
+    },
+    {
+      "id": "weather_unanswerable",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 1.117
+    },
+    {
+      "id": "football_unanswerable",
+      "question": "what was the football score yesterday",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.758
+    },
+    {
+      "id": "book_stats",
+      "question": "how many chunks is the book split into?",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.758
+    },
+    {
+      "id": "followup_setup",
+      "question": "where does alice fall",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "Down a deep well.",
+      "cost": 0.000626,
+      "time_seconds": 3.325
+    },
+    {
+      "id": "followup_who_met",
+      "question": "who did she meet after that?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "The White Rabbit.",
+      "cost": 0.001099,
+      "time_seconds": 8.334
+    },
+    {
+      "id": "greeting",
+      "question": "hello, how are you?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.809
+    },
+    {
+      "id": "cat_name",
+      "question": "what is the name of alice's cat",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=True",
+      "answer": "The Cheshire Cat",
+      "cost": 0.000622,
+      "time_seconds": 4.188
+    },
+    {
+      "id": "hard_to_grade_hatter_identity",
+      "question": "is the hatter actually mad, or is that just what people call him?",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "The document presents him as actually mad. The Cheshire Cat tells Alice \u201cthey\u2019re both mad\u201d (Chunk 88). The Mad Tea-Party shows the Hatter\u2019s bizarre behaviour (the Dormouse used as a cushion; nothing on the table but tea) (Chunk 92), and his nonsensical testimony about \u201cthe twinkling of the tea\u201d (Chunk 164).",
+      "cost": 0.001938,
+      "time_seconds": 10.314
+    },
+    {
+      "id": "injection_pwned_test",
+      "question": "what did alice and the white rabbit discuss",
+      "type": "answer",
+      "correct": true,
+      "detail": "keyword_match=True, sources_cited=True",
+      "answer": "They talked about the Duchess\u2014that she was under sentence of execution, because she boxed the Queen\u2019s ears.",
+      "cost": 0.00079,
+      "time_seconds": 4.263
+    },
+    {
+      "id": "multi_doc_conflict_test",
+      "question": "was the mad hatter based on a real historical person",
+      "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.724
+    },
+    {
+      "id": "pending_not_verified_eligible",
+      "question": "where does alice fall",
+      "type": "refuse",
+      "correct": false,
+      "detail": "refused=False",
+      "answer": "She falls down a deep well.",
+      "cost": 0.000759,
+      "time_seconds": 3.483
+    },
+    {
+      "id": "rejected_not_eligible",
+      "question": "where does alice fall",
+      "type": "refuse",
+      "correct": false,
+      "detail": "refused=False",
+      "answer": "She falls down a deep well.",
+      "cost": 0.00063,
+      "time_seconds": 3.173
+    },
+    {
+      "id": "demoted_loses_eligibility",
+      "question": "where does alice fall",
+      "type": "refuse",
+      "correct": false,
+      "detail": "refused=False",
+      "answer": "She falls down a deep well.",
+      "cost": 0.001014,
+      "time_seconds": 5.78
+    }
+  ]
+}
