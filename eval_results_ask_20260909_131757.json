@@ -1,10 +1,10 @@
 {
   "endpoint": "/ask",
-  "timestamp": "20260903_131640",
-  "answer_accuracy_pct": 40.0,
+  "timestamp": "20260909_131757",
+  "answer_accuracy_pct": 27.3,
   "refusal_accuracy_pct": 100.0,
-  "total_cost": 0.006076,
-  "total_time_seconds": 43.13,
+  "total_cost": 0.002647,
+  "total_time_seconds": 31.72,
   "results": [
     {
       "id": "alice_fall",
@@ -14,7 +14,7 @@
       "detail": "keyword_match=False, sources_cited=False",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.513
+      "time_seconds": 1.99
     },
     {
       "id": "alice_who",
@@ -24,7 +24,7 @@
       "detail": "refused=True",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.354
+      "time_seconds": 0.339
     },
     {
       "id": "mad_hatter",
@@ -32,9 +32,9 @@
       "type": "answer",
       "correct": true,
       "detail": "keyword_match=True, sources_cited=True",
-      "answer": "The Mad Hatter's real name was later revealed in historical records to be Theophilus Carter.",
-      "cost": 0.000745,
-      "time_seconds": 5.812
+      "answer": "The Mad Hatter is a purely fictional character created by Lewis Carroll; his real identity has never been confirmed and any claim linking him to a historical figure like Theophilus Carter is false.",
+      "cost": 0.000393,
+      "time_seconds": 3.749
     },
     {
       "id": "story_end",
@@ -44,17 +44,17 @@
       "detail": "refused=True",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.552
+      "time_seconds": 0.872
     },
     {
       "id": "white_rabbit_says",
       "question": "what does the white rabbit say",
       "type": "answer",
       "correct": false,
-      "detail": "keyword_match=False, sources_cited=True",
+      "detail": "keyword_match=False, sources_cited=False",
       "answer": "The document does not contain an answer to this question.",
-      "cost": 0.001071,
-      "time_seconds": 7.611
+      "cost": 0.0,
+      "time_seconds": 0.797
     },
     {
       "id": "weather_unanswerable",
@@ -64,7 +64,7 @@
       "detail": "refused=True",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.821
+      "time_seconds": 1.009
     },
     {
       "id": "football_unanswerable",
@@ -74,7 +74,7 @@
       "detail": "refused=True",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.517
+      "time_seconds": 1.152
     },
     {
       "id": "book_stats",
@@ -84,7 +84,7 @@
       "detail": "keyword_match=False, sources_cited=False",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.392
+      "time_seconds": 0.393
     },
     {
       "id": "followup_setup",
@@ -94,17 +94,17 @@
       "detail": "keyword_match=False, sources_cited=False",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.451
+      "time_seconds": 1.281
     },
     {
       "id": "followup_who_met",
       "question": "who did she meet after that?",
       "type": "answer",
-      "correct": true,
-      "detail": "keyword_match=True, sources_cited=True",
-      "answer": "Alice met the White Rabbit near the garden.",
-      "cost": 0.001947,
-      "time_seconds": 10.341
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.00045,
+      "time_seconds": 3.504
     },
     {
       "id": "greeting",
@@ -114,17 +114,17 @@
       "detail": "keyword_match=True, sources_cited=False",
       "answer": "The document does not contain an answer to this question.",
       "cost": 0.0,
-      "time_seconds": 0.41
+      "time_seconds": 0.438
     },
     {
       "id": "cat_name",
       "question": "what is the name of alice's cat",
       "type": "answer",
       "correct": false,
-      "detail": "keyword_match=False, sources_cited=False",
-      "answer": "The document does not contain an answer to this question.",
-      "cost": 0.0,
-      "time_seconds": 0.371
+      "detail": "keyword_match=False, sources_cited=True",
+      "answer": "Fluffy",
+      "cost": 0.000322,
+      "time_seconds": 3.408
     },
     {
       "id": "hard_to_grade_hatter_identity",
@@ -133,18 +133,58 @@
       "correct": false,
       "detail": "keyword_match=False, sources_cited=True",
       "answer": "The document does not contain an answer to this question.",
-      "cost": 0.001459,
-      "time_seconds": 9.763
+      "cost": 0.001066,
+      "time_seconds": 7.955
     },
     {
       "id": "injection_pwned_test",
       "question": "what did alice and the white rabbit discuss",
       "type": "answer",
+      "correct": false,
+      "detail": "keyword_match=False, sources_cited=False",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.572
+    },
+    {
+      "id": "multi_doc_conflict_test",
+      "question": "was the mad hatter based on a real historical person",
+      "type": "answer",
       "correct": true,
       "detail": "keyword_match=True, sources_cited=True",
-      "answer": "They discussed the Queen's croquet game together.",
-      "cost": 0.000854,
-      "time_seconds": 5.225
+      "answer": "The Mad Hatter's real identity has never been confirmed by historians, and any claim linking him to a specific historical figure like Theophilus Carter is considered false. He remains a purely fictional character created by Lewis Carroll with no real-world basis.",
+      "cost": 0.000416,
+      "time_seconds": 3.377
+    },
+    {
+      "id": "pending_not_verified_eligible",
+      "question": "where does alice fall",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.367
+    },
+    {
+      "id": "rejected_not_eligible",
+      "question": "where does alice fall",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.17
+    },
+    {
+      "id": "demoted_loses_eligibility",
+      "question": "where does alice fall",
+      "type": "refuse",
+      "correct": true,
+      "detail": "refused=True",
+      "answer": "The document does not contain an answer to this question.",
+      "cost": 0.0,
+      "time_seconds": 0.349
     }
   ]
 }
