@@ -37,3 +37,19 @@ When re-running from an earlier checkpoint produces a different outcome than the
 
 ---
 Plan for review - pending approval before any code is written, per the standing rule from task 13.
+
+
+
+
+## 6. Review additions (approved with 4 small additions, folded in)
+
+**Addition 1 — thread_id:** A paused graph is found again by its `thread_id`, not its `doc_id`. Since my API's `/approve` and `/reject` endpoints receive a `doc_id`, I need a way to turn that into the right paused run. Decision: I will set `thread_id = doc_id` directly (they'll be the same value) — this is the simplest option and avoids needing an extra lookup column, since doc_id is already unique per document.
+
+**Addition 2 — check what the framework already does before building "keep both":** Per the review, when re-running from an earlier checkpoint, LangGraph does NOT delete the original path — it forks, and old checkpoints remain accessible in history. So my job is likely to expose that existing history through my API, not build a separate audit record myself. I will verify this behavior directly during the build (step 5, time-travel) before writing any extra "keep both results" logic — if the framework already preserves both paths, I don't need to build anything extra for this.
+
+**Addition 3 — COURSE_NOTES.md section (was missing from the plan):** I will add a section to COURSE_NOTES.md documenting: what the framework gave me that my hand-built endpoints didn't (genuine pause/resume via interrupt(), automatic state persistence via the checkpointer, time-travel via checkpoint history), and what I gave up (direct, easy-to-read control flow — the graph's execution is less linear to trace by just reading the code; also a new dependency and a new persistence mechanism to reason about, on top of the ones I already had).
+
+**Addition 4 — existing pending documents from task 13:** Documents already sitting in "pending" status from before this rebuild have no graph run behind them. Decision: these are declared explicitly out of scope for automatic migration. On first build, I will document this clearly and, if time allows, provide one manual step to re-initiate a graph run for a pre-existing pending document. This is a deliberate, stated choice — not an unhandled gap.
+
+---
+*Plan approved 10 September 2026, four additions folded in same day. Build window: one day from approval.*
