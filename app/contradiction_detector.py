@@ -62,7 +62,7 @@ def check_new_document_for_contradictions(new_chunks, new_doc_id):
         results = vectorstore.similarity_search_with_relevance_scores(new_chunk["text"], k=5)
         for doc, relevance_score in results:
             existing_doc_id = doc.metadata.get("doc_id")
-            if existing_doc_id not in verified_doc_ids:
+            if existing_doc_id not in verified_doc_ids or existing_doc_id == new_doc_id:
                 continue
             if relevance_score < SIMILARITY_CANDIDATE_THRESHOLD:
                 continue

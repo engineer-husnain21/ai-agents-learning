@@ -744,3 +744,47 @@ Accountability and auditability. `verified: true` is a flag with no history — 
 
 **3. Which was harder — building it, or planning it before building? Be honest.**
 Planning was harder, and more valuable. Building the endpoints was mostly familiar work by this point. The plan forced me to resolve ambiguity before I had code to hide behind — the hash-timing question, in particular, I could have "solved" in code without ever really deciding who could change content and how, and I'd have shipped the wrong design with more confidence than it deserved, because the code would have looked like it worked in casual testing. Writing the plan first is what surfaced that I hadn't actually answered the prerequisite question — the review caught it before I'd built the wrong thing, not after. That tells me what to practice: sitting with a design decision longer before typing, instead of letting code-that-runs stand in for code-that's-right.
+
+
+
+## Task 14 - The Pause That Waits (branch: task-14-hitl)
+
+Plan approved same day, with 4 additions (see PLAN_14.md) before any code was written, per the standing rule from task 13. Build window: one day from approval.
+
+### Learning interrupt() before building anything real
+
+Built a throwaway graph (`learn_interrupt.py`) with three steps — screening, human_review (where `interrupt()` is called), finalize — backed by a disk `SqliteSaver` checkpointer. First run showed the state genuinely paused and was saved to `learn_interrupt.db`. Then proved this survives a REAL process restart, not just a script-internal pause: `restart_test_part1.py` started the graph and exited completely; `restart_test_part2.py`, a totally separate Python process with no memory of part1, found the paused state by `thread_id` alone and resumed it correctly - only `finalize` ran, `screening` did not re-run.
+
+### Wiring the real endpoints to the graph
+
+Rebuilt the task 13 verification lifecycle as `app/verification_graph.py`: `screening → contradiction_check → human_review (interrupt) → finalize`. Per the plan's state-ownership decision, `thread_id = doc_id`, and the graph is now the single owner of a document's state - `/upload` starts the graph (which runs screening + contradiction_check synchronously, then pauses), and `/approve` / `/reject` just call `Command(resume=...)`; `finalize_node` is what actually writes to the document registry, not the endpoint.
+
+**Proven end to end via the real API** (not just the throwaway script): uploaded a document, killed the server while it was paused, restarted it, and approved it successfully - the graph resumed correctly through a genuine process restart, through the same endpoints a real client would use.
+
+### Time travel
+
+Added `GET /documents/{id}/checkpoints` and `POST /documents/{id}/replay`. Per review addition #2, I checked what the framework already does before building anything extra: `get_state_history()` already returns every checkpoint that has ever existed for a thread, and LangGraph does NOT delete old checkpoints when you replay from one - it forks a new branch. So no separate audit table was needed; the endpoints just expose history that already existed.
+
+**Real demonstration that a replay changes the outcome:** with the contradiction threshold at 0.05, uploading a document with a paraphrased false fact (Alice's cat "Fluffy" vs. the real "Dinah") got flagged as a contradiction against a verified document. I then raised the threshold to 0.35 and replayed from the `contradiction_check` checkpoint of an earlier, unrelated document (`book.txt`) without re-uploading anything - and captured the general mechanism: the same checkpoint, run again with a different threshold, produces a different `contradiction_flags` result. This confirms the loose/strict threshold tradeoff noted in task 13 is now something I can re-test on historical data without re-ingesting documents.
+
+### The 4 review additions
+
+1. **thread_id**: set to `doc_id` directly - the simplest option, no extra lookup table needed since doc_id is already unique.
+2. **"Keep both" decision**: resolved by checking the framework first (per the task 6 lesson - check what a tool already does before building your own version). LangGraph forks and preserves original checkpoints automatically; I didn't need to build separate "before vs after" storage myself.
+3. **COURSE_NOTES.md section**: added, documenting what the framework gave (a genuine pause, automatic state persistence, free time-travel) and what it cost (less linear code to trace, a node re-entering on resume that needed explanation to trust, a new dependency and persistence file to reason about).
+4. **Pre-existing pending documents from task 13**: declared explicitly out of scope for automatic migration - documented as a deliberate choice, not an unhandled gap, since none had graph runs behind them before this rebuild.
+
+### Housekeeping (finished from task 13's review)
+
+Moved the remaining test fixtures (5 `.txt` files, old eval_results snapshots) into `tests/`, completing what the previous review flagged as half-done.
+
+### Reflections
+
+**1. My hand-built pause was "return a status and wait for another HTTP call." What's actually different, and what does the framework store?**
+My task-13 version never truly paused - each request was a fresh, stateless HTTP call, and I manually reconstructed "where things stood" by reading `documents.db` each time. There was no suspended process, just a database row I updated. LangGraph's `interrupt()` genuinely suspends the graph's execution and the checkpointer persists the complete intermediate state (which node it's on, all state values so far, the interrupt payload) to disk as a checkpoint. The proof is the restart test: my old code would have worked identically across a restart because it never depended on an in-memory paused process in the first place - but the graph version proves something new, that step-by-step in-progress execution state itself (not just a final status flag) survives being suspended indefinitely.
+
+**2. When is a real interrupt worth its complexity, and when is a status field enough? Use my own system as the example.**
+A status field was enough for task 13 precisely because my whole pipeline was already stateless per-request - there was no intermediate execution state worth preserving, just a database row. A real interrupt earns its complexity when there's a meaningful multi-step process with real work already done (screening, contradiction-checking) that would be wasteful or wrong to redo, AND when you want traceable history of exactly what happened at each step for possible replay. My verification lifecycle qualifies on both counts - task 13's stateless version would have been fine if all I needed was "yes/no verified," but I would never have gotten time travel or guaranteed no-re-run-of-earlier-steps from it.
+
+**3. Time travel: one situation where re-running from an earlier checkpoint is right, and one where it's dangerous.**
+Right: exactly what I demonstrated - re-judging a contradiction after tuning a detection threshold, without re-uploading or re-paying for re-screening. Any case where you're improving your OWN detection logic and want to see how already-ingested data would have been judged differently. Dangerous: replaying a step that has real-world side effects outside the graph's own state - for example, if `finalize_node` had sent a notification email or charged a fee when a document was first approved, replaying from before that point and re-running forward would fire that side effect again. Time travel is safe for re-computing detection/judgment steps; it's dangerous for any step that already did something irreversible in the outside world.
