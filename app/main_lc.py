@@ -1,14 +1,14 @@
 """
-main_lc.py — Task 13: verification lifecycle (pending -> verified/rejected,
-with demotion on content change). /ask only answers from verified
-documents when trust_filter=verified_only; pending/rejected/demoted are
-never eligible for verified-only queries.
+main_lc.py — Task 14: verification lifecycle now runs through a real
+LangGraph graph (verification_graph.py). Endpoints are thin - they
+start the graph or resume it; the graph owns the state.
 Run with: uvicorn app.main_lc:app --reload --port 8002
 """
 
 import uuid
 from fastapi import FastAPI, UploadFile, Form
 from pydantic import BaseModel
+from langgraph.types import Command
 
 from app.chunking_lc import chunk_text_lc
 from app.vectorstore_lc import get_vectorstore, add_document_chunks, delete_document_chunks, get_top_chunks_lc
@@ -19,6 +19,7 @@ from app.logging_lc import log_event, Timer
 from app.injection_screen import screen_chunks
 from app.content_hash import compute_content_hash
 from app.contradiction_detector import check_new_document_for_contradictions
+from app.verification_graph import get_verification_graph
 from app.document_registry import (
     init_registry_db, add_document, approve_document, reject_document,
     demote_document, list_documents, get_document, delete_document
@@ -32,8 +33,6 @@ init_registry_db()
 
 TRUST_LEVELS = ["verified", "unverified"]
 
-# in-memory cache of each doc's full text, so we can re-hash it on read
-# to detect out-of-band content changes (demotion trigger)
 _document_text_cache = {}
 
 
@@ -47,23 +46,33 @@ async def upload(file: UploadFile, trust_level: str = Form(default="unverified")
     content_hash = compute_content_hash(text)
 
     chunks = chunk_text_lc(text)
-    chunks = screen_chunks(chunks)
-    flagged_count = sum(1 for c in chunks if c["flagged"])
-
     doc_id = add_document(file.filename, trust_level, len(chunks), content_hash)
     add_document_chunks(chunks, doc_id)
     _document_text_cache[doc_id] = text
 
-    contradiction_flags = check_new_document_for_contradictions(chunks, doc_id)
+    # Task 14: screening + contradiction check now run INSIDE the graph,
+    # which pauses at human_review. thread_id = doc_id (plan addition #1).
+    graph = get_verification_graph()
+    config = {"configurable": {"thread_id": doc_id}}
+    paused_state = graph.invoke({
+        "doc_id": doc_id,
+        "filename": file.filename,
+        "chunks": chunks,
+        "content_hash": content_hash,
+        "decision": "",
+        "approved_by": "",
+        "reason": "",
+        "status": "pending"
+    }, config=config)
 
     return {
-        "message": f"Added document '{file.filename}' as PENDING — not eligible for verified-only questions until approved",
+        "message": f"Added document '{file.filename}' as PENDING — graph paused, waiting for human review",
         "doc_id": doc_id,
         "status": "pending",
         "chunks_created": len(chunks),
-        "chunks_flagged_for_injection_patterns": flagged_count,
-        "contradictions_flagged": len(contradiction_flags),
-        "contradiction_details": contradiction_flags
+        "chunks_flagged_for_injection_patterns": paused_state.get("flagged_count", 0),
+        "contradictions_flagged": len(paused_state.get("contradiction_flags", [])),
+        "contradiction_details": paused_state.get("contradiction_flags", [])
     }
 
 
@@ -77,10 +86,10 @@ async def approve(doc_id: str, request: ApproveRequest):
     if doc is None:
         return {"error": f"No document with doc_id '{doc_id}'"}
 
-    text = _document_text_cache.get(doc_id, "")
-    current_hash = compute_content_hash(text)
+    graph = get_verification_graph()
+    config = {"configurable": {"thread_id": doc_id}}
+    graph.invoke(Command(resume={"decision": "approve", "by": request.approved_by}), config=config)
 
-    approve_document(doc_id, request.approved_by, current_hash)
     return {
         "message": f"'{doc['filename']}' approved and verified",
         "approved_by": request.approved_by,
@@ -101,7 +110,10 @@ async def reject(doc_id: str, request: RejectRequest):
     if not request.reason.strip():
         return {"error": "A rejection reason is required."}
 
-    reject_document(doc_id, request.rejected_by, request.reason)
+    graph = get_verification_graph()
+    config = {"configurable": {"thread_id": doc_id}}
+    graph.invoke(Command(resume={"decision": "reject", "by": request.rejected_by, "reason": request.reason}), config=config)
+
     return {
         "message": f"'{doc['filename']}' rejected",
         "rejected_by": request.rejected_by,
@@ -115,15 +127,19 @@ async def get_documents():
     return {"documents": list_documents()}
 
 
+@app.delete("/documents/{doc_id}")
+async def remove_document(doc_id: str):
+    doc = get_document(doc_id)
+    if doc is None:
+        return {"error": f"No document with doc_id '{doc_id}'"}
+    delete_document_chunks(doc_id)
+    delete_document(doc_id)
+    _document_text_cache.pop(doc_id, None)
+    return {"message": f"Removed document '{doc['filename']}' (doc_id: {doc_id})"}
+
+
 @app.put("/documents/{doc_id}/content")
 async def update_document_content(doc_id: str, file: UploadFile):
-    """
-    Task 13, corrected per testing: since documents arrive as uploaded
-    bytes (no persistent disk path the server can re-read), content can
-    only change through OUR API — there is no out-of-band file to poll.
-    So the demotion check happens at WRITE time (here), not on every read.
-    If the document was verified, changing its content demotes it.
-    """
     doc = get_document(doc_id)
     if doc is None:
         return {"error": f"No document with doc_id '{doc_id}'"}
@@ -141,11 +157,6 @@ async def update_document_content(doc_id: str, file: UploadFile):
     add_document_chunks(new_chunks, doc_id)
     _document_text_cache[doc_id] = new_text
 
-    # Per review point 2: changed content is a new version of the
-    # document — it must go through the FULL ingestion pipeline, not
-    # just injection screening. Otherwise an edit could silently turn a
-    # verified document into one that contradicts the corpus, and the
-    # reviewer would never see it.
     contradiction_flags = check_new_document_for_contradictions(new_chunks, doc_id)
 
     if was_verified and content_changed:
@@ -164,36 +175,10 @@ async def update_document_content(doc_id: str, file: UploadFile):
     }
 
 
-@app.delete("/documents/{doc_id}")
-async def remove_document(doc_id: str):
-    doc = get_document(doc_id)
-    if doc is None:
-        return {"error": f"No document with doc_id '{doc_id}'"}
-    delete_document_chunks(doc_id)
-    delete_document(doc_id)
-    _document_text_cache.pop(doc_id, None)
-    return {"message": f"Removed document '{doc['filename']}' (doc_id: {doc_id})"}
-
-
-def check_and_demote_if_changed(doc):
-    """
-    Read-time content-change check (per plan decision: files can be
-    edited out-of-band, so we check on read, not only on write).
-    """
-    if doc["status"] != "verified":
-        return doc
-    cached_text = _document_text_cache.get(doc["doc_id"], "")
-    current_hash = compute_content_hash(cached_text)
-    if current_hash != doc["content_hash"]:
-        demote_document(doc["doc_id"])
-        return get_document(doc["doc_id"])
-    return doc
-
-
 class AskRequest(BaseModel):
     session_id: str
     question: str
-    trust_filter: str = "any"  # "any" | "verified_only"
+    trust_filter: str = "any"
 
 
 def build_citation(chunk):
@@ -213,12 +198,10 @@ async def ask(request: AskRequest):
     request_id = uuid.uuid4().hex[:12]
 
     with Timer() as request_timer:
-        all_docs = [check_and_demote_if_changed(d) for d in list_documents()]
+        all_docs = list_documents()
         if not all_docs:
             return {"error": "No documents have been uploaded yet. Use /upload first."}
 
-        # Eligibility is a CODE decision: only verified docs count for
-        # verified_only; pending/rejected/demoted are never eligible.
         if request.trust_filter == "verified_only":
             allowed_doc_ids = {d["doc_id"] for d in all_docs if d["status"] == "verified"}
         else:
