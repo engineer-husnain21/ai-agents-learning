@@ -122,6 +122,51 @@ async def reject(doc_id: str, request: RejectRequest):
     }
 
 
+@app.get("/documents/{doc_id}/checkpoints")
+async def list_checkpoints(doc_id: str):
+    """
+    Time travel, part 1: list every checkpoint LangGraph has kept for
+    this document's review — this history already exists in the
+    checkpointer, per review addition #2, so we're exposing it, not
+    building our own separate record.
+    """
+    graph = get_verification_graph()
+    config = {"configurable": {"thread_id": doc_id}}
+
+    checkpoints = []
+    for snapshot in graph.get_state_history(config):
+        checkpoints.append({
+            "checkpoint_id": snapshot.config["configurable"]["checkpoint_id"],
+            "next_step": snapshot.next,
+            "flagged_count": snapshot.values.get("flagged_count"),
+            "contradiction_flags_count": len(snapshot.values.get("contradiction_flags", []) or []),
+            "status": snapshot.values.get("status")
+        })
+
+    return {"doc_id": doc_id, "checkpoints": checkpoints}
+
+
+class ReplayRequest(BaseModel):
+    checkpoint_id: str
+
+
+@app.post("/documents/{doc_id}/replay")
+async def replay_from_checkpoint(doc_id: str, request: ReplayRequest):
+    """
+    Time travel, part 2: re-run forward from a chosen earlier checkpoint
+    — e.g. re-judge a contradiction after changing the detector's
+    threshold, without re-uploading anything. LangGraph forks a new
+    branch from that point; the original checkpoints are NOT deleted.
+    """
+    graph = get_verification_graph()
+    config = {"configurable": {"thread_id": doc_id, "checkpoint_id": request.checkpoint_id}}
+    result = graph.invoke(None, config=config)
+    return {
+        "doc_id": doc_id,
+        "replayed_from_checkpoint": request.checkpoint_id,
+        "result": result
+    }
+
 @app.get("/documents")
 async def get_documents():
     return {"documents": list_documents()}
