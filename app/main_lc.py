@@ -254,7 +254,7 @@ async def ask(request: AskRequest):
                 session_id=request.session_id, endpoint="/ask", question=request.question,
                 was_rewritten=was_rewritten, gate_score=None, gate_passed=None,
                 outcome="refused_off_topic", retry_fired=False, retry_succeeded=None,
-                llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=round(request_timer.elapsed, 3),
+                llm_calls=llm_calls, cost=round(total_cost, 6), latency_seconds=None,
                 request_id=request_id, route=route
             )
             return {
