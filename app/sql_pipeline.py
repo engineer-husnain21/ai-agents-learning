@@ -27,9 +27,13 @@ Tables:
   products(product_id INTEGER, product_name TEXT, category TEXT, unit_price REAL)
   sales(sale_id INTEGER, sale_date TEXT (format YYYY-MM-DD), store_id INTEGER, product_id INTEGER, quantity INTEGER)
 
+Exact store_name values: 'Deira', 'Marina', 'Jumeirah'
+Exact product_name values: 'Basmati Rice 5kg', 'Olive Oil 1L', 'Khalas Dates 500g', 'Laban 1L', 'Free-Range Eggs 15pk', 'Chakki Flour 2kg', 'Sidr Honey 250g', 'Karak Tea 200g'
+
 Notes:
   - sales.quantity is units sold, not revenue. Revenue = quantity * unit_price (join products).
   - All sale_date values are in July 2026 (2026-07-01 to 2026-07-28). There is NO data for any other month or year.
+  - When matching a product by a partial name mentioned in the question (e.g. "Laban"), use LIKE '%Laban%' rather than an exact match, since product names include extra descriptive words (e.g. "Laban 1L").
 """
 
 FORBIDDEN_KEYWORDS = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "REPLACE", "ATTACH", "PRAGMA"]
