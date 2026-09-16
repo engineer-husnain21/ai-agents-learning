@@ -29,4 +29,4 @@ HISTORY_LENGTH = 3
 
 # Chroma's relevance scores are on a different scale than our hand-built
 # cosine similarity, so they need their own threshold.
-LC_SIMILARITY_THRESHOLD = 0.30
+LC_SIMILARITY_THRESHOLD = 0.15
