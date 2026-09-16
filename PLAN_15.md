@@ -38,4 +38,15 @@ Keeping memory coherent across a route switch - a data-route answer followed by 
 
 Should the router be a fully separate LLM call, or folded into the existing rewrite step to save a call? I'm leaning toward keeping it separate - clarity and testability (I can grade routing accuracy on its own) outweigh the cost of one extra small call per question, but I want to defend this rather than just assume it.
 
-Plan for review - pending approval before any code is written, per the standing rule.
+6. Review additions (approved with 3 additions, folded in)
+
+**Addition 1 — "no data" vs. "measured zero":** an aggregate query (`SUM`, `COUNT`, `AVG`) on a time range with no matching rows still returns exactly one row, containing NULL or 0 — not zero rows. My original "did any rows come back" check would misreport this as "sales were zero," a false factual claim, instead of "no data exists for this period." Decision: before running any aggregate query, I will also run a companion existence check — `SELECT COUNT(*) FROM sales WHERE <same filter>` — separately from the aggregate itself. If that count is 0, the answer is "no data exists for this period," never a number. If the count is >0 but the aggregate is NULL (e.g. a column genuinely has no value), that's a different, rarer case I'll also refuse rather than guess. Only when the existence check confirms rows > 0 does the aggregate's actual value get reported.
+
+**Addition 2 — router stays separate, real reason is contamination:** the stronger reason (per review) isn't just clarity/testability — it's that a single call doing both rewriting and routing can invent words to make a question fit its own routing decision, and since rewrite runs first, everything downstream trusts whatever it invented. Keeping them separate means the rewrite step's only job is resolving references, and the router's only job is classifying — neither can quietly influence the other. In the cost table, the router's extra LLM call is documented as the price of traceability (a separately gradable, auditable step), not as overhead.
+
+**Addition 3 — rewrite context needs answers, not just questions, reconciled with task 5.5:** task 5.5 decided the ORIGINAL user question (not the rewrite) is what gets saved to history — that stands, unchanged. What changes: the context I feed INTO the rewrite step will now include both the question and its answer for recent turns, not questions alone — because "who manages that branch?" can only resolve if the rewrite step can see that the previous answer named "Marina." This doesn't change what's stored (still the original question), only what's read back out when building the next rewrite's context.
+
+**Bonus — route accuracy as a measured harness number:** rather than just noting "router may struggle with ambiguous questions" as a prediction, I will add deliberately ambiguous test cases (e.g. questions mentioning "branch" that could plausibly be data or policy) to the eval set, and report route accuracy as its own tracked metric — turning a guess into a number I can watch move between changes.
+
+---
+*Plan approved 15 September 2026, three additions folded in same day. Two-day build window.*
