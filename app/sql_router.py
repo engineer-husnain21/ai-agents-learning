@@ -14,8 +14,8 @@ from app.rewriting_lc import chat_model
 ROUTE_PROMPT = """Classify this question into EXACTLY one category: DATA, POLICY, or OFF_TOPIC.
 
 DATA = questions about sales, revenue, quantities sold, stores, products, prices, numbers - anything answerable from a sales database (stores, products, sales tables).
-POLICY = questions about company policies, branch managers, opening hours, returns, delivery, the loyalty program - anything answerable from the company handbook.
-OFF_TOPIC = anything unrelated to this grocery store's data or policies (weather, general knowledge, unrelated small talk).
+POLICY = questions answerable from an uploaded document - company policies, branch managers, opening hours, returns, delivery, loyalty program, OR any other topic covered in a verified document (e.g. a story, a handbook, any reference text that has been uploaded).
+OFF_TOPIC = anything not answerable from either the sales database or any uploaded document (weather, general knowledge with no document backing, unrelated small talk).
 
 {context_block}Question: {question}
 
