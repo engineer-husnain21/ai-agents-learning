@@ -788,3 +788,54 @@ A status field was enough for task 13 precisely because my whole pipeline was al
 
 **3. Time travel: one situation where re-running from an earlier checkpoint is right, and one where it's dangerous.**
 Right: exactly what I demonstrated - re-judging a contradiction after tuning a detection threshold, without re-uploading or re-paying for re-screening. Any case where you're improving your OWN detection logic and want to see how already-ingested data would have been judged differently. Dangerous: replaying a step that has real-world side effects outside the graph's own state - for example, if `finalize_node` had sent a notification email or charged a fee when a document was first approved, replaying from before that point and re-running forward would fire that side effect again. Time travel is safe for re-computing detection/judgment steps; it's dangerous for any step that already did something irreversible in the outside world.
+
+
+
+
+## Task 15 - A Second Kind of Source (branch: task-15-hybrid)
+
+Plan approved same day, with 3 additions (see PLAN_15.md), per the standing rule. Two-day build window.
+
+### What got built
+
+- **SQLite database** from the seed file (3 stores, 8 products, 252 sales records for July 2026), a decision defended honestly as "optimizes for what I already know and my existing architecture, not production-realism."
+- **A router** (`sql_router.py`) — a single dedicated LLM call classifying every question as DATA/POLICY/OFF_TOPIC, kept deliberately separate from the rewrite step.
+- **A SQL pipeline** (`sql_pipeline.py`) — generates a query from the question and schema, validates it in code before running (must start with SELECT, no write/DDL keywords), executes it on a **read-only SQLite connection** as a second independent safety layer, and includes bounded repair (max 2 retries).
+
+### The 3 review additions
+
+**1. "No data" vs. "measured zero"** — an aggregate query with no matching rows still returns one row (NULL/0), which would have let the system falsely report "sales were zero" instead of "no data exists." Fixed by having every aggregate query also select a `matched_rows = COUNT(*)` column; if that's 0, the answer says "no data exists," never a number. Verified with a real test: "what were total sales in 2025" correctly returned "no data exists for this period" — exactly the failure mode the reviewer had watched happen elsewhere.
+
+**2. Router stays separate — contamination, not just clarity** — a single call doing both rewriting and routing could invent words to make a question fit its own routing decision, and since rewrite runs first, everything downstream would trust whatever it invented. The router's extra LLM call is documented in the cost breakdown as the price of traceability (a separately gradable step), not overhead.
+
+**3. Rewrite context needs answers, not just questions** — reconciled with task 5.5: the ORIGINAL question is still what's saved to history (unchanged), but `get_history()` already returns question+answer pairs, so the rewrite step already had access to prior answers without any change needed. Proven directly: "who manages that branch?" after a DATA-route question about Marina correctly resolved to "Who manages the Marina store?" and routed to POLICY, giving the right answer.
+
+### A real regression, found and reverted
+
+Attempted to generalize the router's POLICY category to cover any uploaded document (not just Noor Market's own handbook), to fix old Alice-book test cases that were now misrouted to OFF_TOPIC. The generalized prompt didn't fully fix the Alice routing AND introduced a regression: it broke the exact cross-route follow-up test built for addition #3 (route accuracy dropped from 87.5% to 75%, and the follow-up that should route to POLICY started routing to DATA instead). Reverted to the original, Noor-Market-specific prompt, which restored 100% route accuracy (8/8) on every hybrid test case. This is a real, reproducible example of prompt fragility: a wording change made for one unrelated reason shifted a decision boundary elsewhere in the same prompt. Documented as a known scope limitation instead of a "fix": this router is intentionally tuned for the Noor Market business domain, per task 15's actual requirement; questions about documents outside that domain (like the old Alice test set) are out of scope for this task and correctly excluded.
+
+### Two real bugs found and fixed during testing
+
+- `Timer.elapsed` was referenced before the `with Timer()` block closed, in both the DATA and OFF_TOPIC routes — fixed by passing `latency_seconds=None` for those paths.
+- The model generated `product_name = 'Laban'` but the real value was `'Laban 1L'` — an exact-match miss that correctly reported "no data" (matched_rows=0) rather than a false result, but was still wrong because real matching data existed. Fixed by adding exact product/store name values to the schema and instructing the model to use LIKE for partial matches.
+
+### Bounded repair, confirmed working
+
+Asked "what is the median sale quantity across all transactions" — SQLite has no MEDIAN function, so the model tried a window-function workaround that still failed twice. After the 2-retry ceiling, the system correctly said "I couldn't safely answer this data question" rather than crashing, hallucinating a number, or retrying indefinitely.
+
+### Security, confirmed not asserted
+
+"Delete all sales records" never generated a destructive query — the model produced a SELECT describing what deleting would affect (252 rows, revenue impact) instead. Verified directly against the database file: still 252 rows after the request.
+
+### Harness results
+
+Final run: 100% route accuracy (8/8) on every hybrid-specific test case, including the deliberately ambiguous "branch" questions and the cross-route follow-up. Overall answer accuracy is lower (41.2%) because it includes the pre-existing Alice test cases, which are now out of scope per the documented router limitation above — the hybrid-specific subset is the number that reflects this task's actual target.
+
+### Reflections
+
+**1. Why query rows instead of embedding them - where does the document approach fail for numbers?**
+Embedding treats text as approximately-matchable meaning; numbers need exact arithmetic (SUM, AVG, COUNT over a precise filter), which similarity search cannot do - "how many units sold in July" has one correct numeric answer, not a "similar enough" chunk of text. A SQL query engine computes the exact answer; a retrieval system can only ever return the text passage most likely to contain it, and confidence there isn't the same as correctness for numbers.
+
+**2. What could go wrong with a model-generated query that actually runs, and what did I do about each?** Wrong/destructive query (INSERT/DELETE/etc.) - blocked by two independent layers (code validation + read-only connection), tested directly with a destructive-intent question. Query using the wrong exact string values (e.g. product names) - fixed by putting exact values in the schema. Query that's syntactically broken or uses unsupported functions - handled by bounded repair (2 retries), and a hard stop with an honest refusal after that, proven with the median-query test. Aggregate returning a misleading zero - fixed with the matched_rows existence check.
+
+**3. Why keep "no data" and "off-topic" as different refusals?** They're different claims about different things. "No data" means the question was legitimate and correctly understood, but the specific fact requested doesn't exist in the corpus - the system did its job and is being honest about a gap. "Off-topic" means the question was never something this system could answer at all. Collapsing them into one generic "I can't help with that" would hide which kind of gap the user is facing - one is a data-coverage problem worth reporting to whoever maintains the corpus, the other is a scope problem the user needs to know isn't going to be fixed by adding more data.

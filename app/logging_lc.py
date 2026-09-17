@@ -1,10 +1,11 @@
 """
-logging_lc.py — structured event logging for every /ask request.
-Writes one JSON line per request to events.jsonl.
+logging_lc.py — structured event logging for every /ask request, plus
+per-LLM-call span logging. Writes one JSON line per event/span.
 
-RULE: logging must NEVER break a request. log_event() is wrapped in a
-try/except that swallows any logging failure silently — the user always
-gets their answer even if the disk is full, the file is locked, etc.
+RULE: logging must NEVER break a request. Both log_event() and
+log_span() are wrapped in try/except that swallow any logging failure
+silently — the user always gets their answer even if the disk is full,
+the file is locked, etc.
 """
 
 import json
@@ -12,6 +13,7 @@ import time
 from datetime import datetime
 
 LOG_PATH = "events.jsonl"
+SPAN_LOG_PATH = "spans.jsonl"
 
 
 def log_event(
@@ -28,12 +30,14 @@ def log_event(
     cost,
     latency_seconds,
     request_id=None,
-    cited_documents=None
+    cited_documents=None,
+    route=None
 ):
     """
-    outcome: "answered" | "refused_by_gate" | "refused_by_model"
-    cited_documents: list of {"doc_id", "trust_level"} actually used in
-    this answer (task 12) — lets stats.py report per-document/tier share.
+    outcome: "answered" | "refused_by_gate" | "refused_by_model" |
+             "refused_off_topic" | "no_data" | "sql_error"
+    route: "DATA" | "POLICY" | "OFF_TOPIC" (task 15)
+    cited_documents: list of {"doc_id", "trust_level"} actually used.
     Never raises — a logging failure must never break the user's request.
     """
     try:
@@ -52,7 +56,8 @@ def log_event(
             "llm_calls": llm_calls,
             "cost": cost,
             "latency_seconds": latency_seconds,
-            "cited_documents": cited_documents or []
+            "cited_documents": cited_documents or [],
+            "route": route
         }
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
@@ -60,14 +65,9 @@ def log_event(
         pass
 
 
-SPAN_LOG_PATH = "spans.jsonl"
-
-
 def log_span(request_id, step, model, input_tokens, output_tokens, cost, latency_seconds):
-    """
-    One child record per LLM call. step: "rewrite" | "answer" | "retry_answer"
-    Same never-breaks-a-request rule as log_event().
-    """
+    """One child record per LLM call. step: "rewrite" | "route" | "answer" |
+    "retry_answer" | "sql_generate" | "sql_repair" """
     try:
         record = {
             "timestamp": datetime.now().isoformat(),
