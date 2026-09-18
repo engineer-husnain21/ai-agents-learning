@@ -280,8 +280,34 @@ def print_document_state_stats():
     print()
 
 
+def print_route_stats():
+    """Task 15: breaks down requests, cost, and outcomes by route
+    (DATA / POLICY / OFF_TOPIC)."""
+    events = load_events()
+    if not events:
+        return
+
+    by_route = defaultdict(list)
+    for e in events:
+        route = e.get("route") or "unrouted"
+        by_route[route].append(e)
+
+    print("=== PER-ROUTE BREAKDOWN (task 15) ===")
+    for route, route_events in by_route.items():
+        total = len(route_events)
+        total_cost = sum(e.get("cost", 0) for e in route_events)
+        outcome_counts = defaultdict(int)
+        for e in route_events:
+            outcome_counts[e["outcome"]] += 1
+        print(f"  {route}: {total} requests, total cost ${total_cost:.6f}")
+        for outcome, count in outcome_counts.items():
+            print(f"      {outcome}: {count}")
+    print()
+
+
 if __name__ == "__main__":
     print_span_stats()
     print_document_stats()
     print_document_state_stats()
+    print_route_stats()
     print_stats()
