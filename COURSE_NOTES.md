@@ -67,4 +67,11 @@ HEAD
 **What I gave up:**
 - Directness. My task-13 code was linear Python I could trace top to bottom. This graph's control flow is split across node functions and edges, and a node re-enters on resume (it runs again from the top, with `interrupt()` returning the resumed value instead of pausing again) — that behavior surprised me the first time I saw it and took explanation to trust.
 - A new dependency and a new persistence file to reason about (`verification_graph.db`) on top of the ones I already had (`documents.db`, `memory.db`). More moving pieces, even though each one individually does less work than my hand-built equivalent.
-1dbefa50067b4ed7ca1c2950850b66059340892e
+
+
+## Module 6
+1. This module covers deployment: what a "deployment" means for a LangGraph app, creating one, connecting to it from client code, the concept of "assistants" (configured versions of a graph), and double-texting (handling a new message while a previous run is still in progress).
+
+2. Comparison to what I'd already built:
+   - Task 5 (FastAPI service) and task 6 (LangChain rebuild) ARE a deployment — I already turned my pipeline into a running HTTP service with POST /upload, POST /ask, GET /history, serving many requests over a real process instead of a one-off script. That's the same core idea this module teaches, just via FastAPI/uvicorn instead of LangGraph's own deployment tooling.
+   - What's new to me: the "assistants" concept (multiple configured versions of the same graph served from one deployment) has no equivalent in my service — I only ever run one fixed pipeline. And double-texting is a real gap in my system: my /ask endpoint has no concept of "a new message arrived while the previous one was still running" — I never handled concurrent requests to the same session_id, and I don't know what my SQLite memory would do if two requests hit it at once for the same session. That's a genuine bug surface Module 6 made me notice.
