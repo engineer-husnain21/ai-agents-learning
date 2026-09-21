@@ -21,6 +21,10 @@ other tenant's data in this database, only these rows):
   tickets(ticket_id, unit_id, category, opened_date, closed_date, status)
   payments(payment_id, tenant_id, due_date, paid_date, amount)
 
+Exact tickets.status values: 'Open', 'Closed' (case-sensitive, capitalized)
+Exact tickets.category values: 'Electrical', 'AC', 'Appliance', 'Plumbing', 'Pest Control', 'Common Area'
+  (there is no generic "maintenance" category - "maintenance" in a question usually means ANY of these categories, i.e. all open tickets regardless of category, unless the tenant names a specific one)
+
 Notes:
   - tickets.status is 'Open' or 'Closed'.
   - payments.paid_date is NULL if unpaid. Late = paid_date is NULL AND due_date has passed, or paid_date > due_date + 5 days (grace period per handbook).
@@ -32,6 +36,10 @@ tenant names or payment amounts are present):
   buildings(building_id, building_name, area)
   units(unit_id, building_id, unit_number, bedrooms, monthly_rent)
   tickets(ticket_id, unit_id, category, opened_date, closed_date, status)
+
+Exact tickets.status values: 'Open', 'Closed' (case-sensitive, capitalized)
+Exact tickets.category values: 'Electrical', 'AC', 'Appliance', 'Plumbing', 'Pest Control', 'Common Area'
+  (there is no generic "maintenance" category - "maintenance" in a question means ANY of these categories, i.e. count tickets across all categories, unless a specific one is named)
 """
 
 MAX_REPAIR_ATTEMPTS = 2
