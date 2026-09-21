@@ -172,7 +172,7 @@ async def ask(request: TenantAskRequest):
             total_cost = rewrite_cost + route_cost
             save_turn(session_key, request.question, LEGAL_ESCALATION_MESSAGE)
             log_event(session_key, route, request.question, "escalated", llm_calls,
-                      round(total_cost, 6), round(request_timer.elapsed, 3), tenant_id=request.tenant_id, request_id=request_id)
+                      round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
             return {"route": route, "answer": LEGAL_ESCALATION_MESSAGE, "cost": round(total_cost, 6)}
 
         if route == "OFF_TOPIC":
@@ -199,14 +199,14 @@ async def ask(request: TenantAskRequest):
                 answer_text = "I couldn't safely answer this question about your account right now."
                 save_turn(session_key, request.question, answer_text)
                 log_event(session_key, route, request.question, "sql_error", llm_calls + 1,
-                          round(total_cost, 6), round(request_timer.elapsed, 3), tenant_id=request.tenant_id, request_id=request_id)
+                          round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
                 return {"route": route, "answer": answer_text, "sql_query": sql_result["query"], "cost": round(total_cost, 6)}
 
             if sql_result["no_data"]:
                 answer_text = "I don't have a record matching that for your account."
                 save_turn(session_key, request.question, answer_text)
                 log_event(session_key, route, request.question, "no_data", llm_calls + 1,
-                          round(total_cost, 6), round(request_timer.elapsed, 3), tenant_id=request.tenant_id, request_id=request_id)
+                          round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
                 return {"route": route, "answer": answer_text, "sql_query": sql_result["query"], "cost": round(total_cost, 6)}
 
             phrase_prompt = f"""Question: {rewritten_question}
@@ -223,7 +223,7 @@ Answer in one or two plain, friendly sentences, using ONLY these results. Speak 
             answer_text = response.content.strip()
             save_turn(session_key, request.question, answer_text)
             log_event(session_key, route, request.question, "answered", llm_calls + 2,
-                      round(total_cost, 6), round(request_timer.elapsed, 3), tenant_id=request.tenant_id, request_id=request_id)
+                      round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
             return {"route": route, "answer": answer_text, "sql_query": sql_result["query"], "cost": round(total_cost, 6)}
 
         # route == "POLICY"
@@ -266,8 +266,8 @@ Answer in one or two plain, friendly sentences, using ONLY these results. Speak 
             "chunk_id": c["chunk_id"]
         })
 
-    log_event(session_key, route, request.question, "answered", llm_calls + 1,
-              round(total_cost, 6), round(request_timer.elapsed, 3), tenant_id=request.tenant_id, request_id=request_id)
+        log_event(session_key, route, request.question, "escalated", llm_calls,
+                    round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
 
     return {
         "route": route, "gate_score": gate_score, "answer": answer_text,
