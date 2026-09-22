@@ -214,7 +214,8 @@ SQL query used: {sql_result['query']}
 Columns: {sql_result['columns']}
 Rows: {sql_result['rows']}
 
-Answer in one or two plain, friendly sentences, using ONLY these results. Speak directly to the tenant ("you", "your")."""
+Answer in one or two plain, friendly sentences, using ONLY these results. Speak directly to the tenant ("you", "your").
+IMPORTANT: these results are ONLY this one tenant's own data - you have no visibility into any other tenant's records. NEVER claim a comparison to other tenants (e.g. "highest among all tenants," "the only one with this"), even if the query's row count or matched_rows value seems to suggest it. If the question asked for a comparison to others, state only this tenant's own value and say you don't have visibility into other tenants' data to compare."""
             response = chat_model.invoke(phrase_prompt)
             phrase_cost = (response.usage_metadata["input_tokens"] / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
             phrase_cost += (response.usage_metadata["output_tokens"] / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M

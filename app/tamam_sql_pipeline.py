@@ -13,13 +13,21 @@ from app.rewriting_lc import chat_model
 FORBIDDEN_KEYWORDS = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "REPLACE", "ATTACH", "PRAGMA"]
 
 TENANT_SCHEMA = """
-Tables (already scoped to only this tenant's own data - there is no
-other tenant's data in this database, only these rows):
+Tables (already scoped to only THIS ONE tenant's own data - there is no
+other tenant's data in this database, only this one person's rows):
   buildings(building_id, building_name, area)
   units(unit_id, building_id, unit_number, bedrooms, monthly_rent)
   tenants(tenant_id, full_name, unit_id, lease_start, lease_end)
   tickets(ticket_id, unit_id, category, opened_date, closed_date, status)
   payments(payment_id, tenant_id, due_date, paid_date, amount)
+
+IMPORTANT: this database contains ONLY the current tenant's own record.
+You cannot see any other tenant, so NEVER claim a comparison across
+tenants (e.g. "you pay the highest rent," "you're the only one with
+this issue") - you have no visibility into anyone else's data to
+support that claim. If asked to compare against other tenants, answer
+only with the tenant's own value and say you don't have visibility
+into other tenants' information to compare.
 
 Exact tickets.status values: 'Open', 'Closed' (case-sensitive, capitalized)
 Exact tickets.category values: 'Electrical', 'AC', 'Appliance', 'Plumbing', 'Pest Control', 'Common Area'
