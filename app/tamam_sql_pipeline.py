@@ -57,7 +57,8 @@ GENERATE_PROMPT = """You write ONE SQLite SELECT query to answer the question be
 
 Rules:
 - Only a single SELECT statement. No explanations, no markdown, just raw SQL.
-- If your query uses an aggregate function (SUM, AVG, COUNT, MAX, MIN) filtered by a condition, ALSO include a separate COUNT(*) column named matched_rows counting how many raw rows matched that same filter.
+- If your query uses an aggregate function (SUM, AVG, COUNT, MAX, MIN) filtered by a condition, ALSO include a separate COUNT(*) column named matched_rows.
+- IMPORTANT: matched_rows must count how many UNDERLYING rows exist in the relevant table for this tenant/building overall (e.g. total payment records, total tickets) - NOT how many rows match your filter condition. This distinguishes "no underlying data exists at all" from "the answer to the filtered question is legitimately zero" (e.g. zero late payments is good news, not missing data - the tenant DOES have payment records, none of them were late).
 
 Question: {question}
 
