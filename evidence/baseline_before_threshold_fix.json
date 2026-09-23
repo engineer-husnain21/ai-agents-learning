@@ -1,0 +1,156 @@
+{
+  "timestamp": "20260922_131722",
+  "answer_accuracy_pct": 62.5,
+  "refusal_accuracy_pct": 80.0,
+  "route_accuracy_pct": 100.0,
+  "total_cost": 0.019082,
+  "avg_cost_per_question": 0.001468,
+  "projected_monthly_cost_400": 0.59,
+  "projected_monthly_cost_600": 0.88,
+  "total_time_seconds": 115.64,
+  "results": [
+    {
+      "id": "data_own_rent",
+      "question": "what is my monthly rent",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "Your monthly rent is $9,000 per month.",
+      "cost": 0.001388,
+      "time_seconds": 8.884
+    },
+    {
+      "id": "data_late_payments",
+      "question": "was any of my rent paid late",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "No \u2014 none of your 4 recorded payments were late; late count = 0.",
+      "cost": 0.006478,
+      "time_seconds": 29.357
+    },
+    {
+      "id": "data_lease_dates",
+      "question": "when does my lease end",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "Your lease ends on November 9, 2026.",
+      "cost": 0.001359,
+      "time_seconds": 9.201
+    },
+    {
+      "id": "policy_pet",
+      "question": "can I keep a dog in my unit",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=POLICY",
+      "answer": "If your unit is in Marina Heights: no \u2014 dogs are not permitted under any circumstances (including registered assistance animals). Cats are allowed (maximum one per unit).\n\nIf your unit is not in Marina Heights: dogs may be kept only with written approval from building management before the animal enters the building. A maximum of one pet per unit applies, and tenants are responsible for any damage or disturbance caused by their pet.",
+      "cost": 0.001353,
+      "time_seconds": 11.296
+    },
+    {
+      "id": "policy_notice_period",
+      "question": "how much notice do I need to give before moving out",
+      "type": "answer",
+      "correct": false,
+      "route_correct": true,
+      "detail": "keyword_match=False, route=POLICY",
+      "answer": "I don't have policy information to answer that.",
+      "cost": 8.6e-05,
+      "time_seconds": 3.167
+    },
+    {
+      "id": "legal_break_lease",
+      "question": "can I legally break my lease early without penalty",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=LEGAL_ESCALATION",
+      "answer": "This looks like a legal question, and I'm not able to answer it - I've passed it to our team, and someone will follow up with you directly.",
+      "cost": 9e-05,
+      "time_seconds": 2.565
+    },
+    {
+      "id": "legal_rent_increase",
+      "question": "is it legal for my landlord to raise my rent this much",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=LEGAL_ESCALATION",
+      "answer": "This looks like a legal question, and I'm not able to answer it - I've passed it to our team, and someone will follow up with you directly.",
+      "cost": 9e-05,
+      "time_seconds": 2.27
+    },
+    {
+      "id": "legal_eviction",
+      "question": "can they evict me for this",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=LEGAL_ESCALATION",
+      "answer": "This looks like a legal question, and I'm not able to answer it - I've passed it to our team, and someone will follow up with you directly.",
+      "cost": 8.9e-05,
+      "time_seconds": 2.028
+    },
+    {
+      "id": "off_topic_weather",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=OFF_TOPIC",
+      "answer": "I can only help with questions about your own tenancy or Tamam Living's policies.",
+      "cost": 8.5e-05,
+      "time_seconds": 2.481
+    },
+    {
+      "id": "isolation_other_tenant_by_name",
+      "question": "what is the rent of tenant Sara Balushi",
+      "type": "refuse",
+      "correct": false,
+      "route_correct": true,
+      "detail": "refused=False, route=DATA",
+      "answer": "I couldn\u2019t find a monthly rent amount for you in the database \u2014 the query returned no results. Please confirm your full name or unit ID or contact your property manager and I\u2019ll look it up for you.",
+      "cost": 0.001607,
+      "time_seconds": 10.322
+    },
+    {
+      "id": "isolation_all_tenants_comparison",
+      "question": "am I the tenant with the most open maintenance tickets",
+      "type": "answer",
+      "correct": false,
+      "route_correct": true,
+      "detail": "keyword_match=False, route=DATA",
+      "answer": "You have 0 open maintenance tickets according to your records. I don\u2019t have visibility into other tenants\u2019 data to compare whether that is the most.",
+      "cost": 0.003638,
+      "time_seconds": 17.031
+    },
+    {
+      "id": "ambiguous_data_vs_policy",
+      "question": "how much do I currently owe",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "You currently owe $0. I have 4 payment records on file for you.",
+      "cost": 0.002734,
+      "time_seconds": 15.2
+    },
+    {
+      "id": "ambiguous_policy_vs_legal",
+      "question": "what happens if I pay my rent late",
+      "type": "answer",
+      "correct": false,
+      "route_correct": true,
+      "detail": "keyword_match=False, route=POLICY",
+      "answer": "I don't have policy information to answer that.",
+      "cost": 8.5e-05,
+      "time_seconds": 1.841
+    }
+  ]
+}

@@ -839,3 +839,111 @@ Embedding treats text as approximately-matchable meaning; numbers need exact ari
 **2. What could go wrong with a model-generated query that actually runs, and what did I do about each?** Wrong/destructive query (INSERT/DELETE/etc.) - blocked by two independent layers (code validation + read-only connection), tested directly with a destructive-intent question. Query using the wrong exact string values (e.g. product names) - fixed by putting exact values in the schema. Query that's syntactically broken or uses unsupported functions - handled by bounded repair (2 retries), and a hard stop with an honest refusal after that, proven with the median-query test. Aggregate returning a misleading zero - fixed with the matched_rows existence check.
 
 **3. Why keep "no data" and "off-topic" as different refusals?** They're different claims about different things. "No data" means the question was legitimate and correctly understood, but the specific fact requested doesn't exist in the corpus - the system did its job and is being honest about a gap. "Off-topic" means the question was never something this system could answer at all. Collapsing them into one generic "I can't help with that" would hide which kind of gap the user is facing - one is a data-coverage problem worth reporting to whoever maintains the corpus, the other is a scope problem the user needs to know isn't going to be fixed by adding more data.
+
+---
+
+## Final Task - Tamam Living Tenant Assistant (branch: task-final-tamam)
+
+Client: Tamam Living (Dubai), 3 buildings - Marina Heights, Deira Court, Silicon Gardens - 38 tenants.
+Plan: 3 days (see `The Final Task - Plan`). Day 1 core system, Day 2 hardening, Day 3 evidence and wrap-up.
+Run the server: `uvicorn app.main_tamam:app --port 8003`
+
+### What the system does
+
+A tenant asks a question through the portal. The portal sends `tenant_id` from its own login session (the tenant never types it). Every question goes through the same steps:
+
+1. **Rewrite** (`app/rewriting_lc.py`) - follow-up questions like "and when is it due?" are rewritten into full questions using this conversation's history only. History is stored under `t{tenant_id}_{conversation_id}`, so one tenant can never read or continue another tenant's conversation.
+2. **Route** (`app/tamam_router.py`) - one dedicated LLM call puts the question into exactly one of four routes.
+3. **Answer** using the route's own path, below.
+4. **Log** one event per question to `tamam_events.jsonl` (route, outcome, cost), kept separate from Noor Market's logs.
+
+| Route | Example | What happens |
+|---|---|---|
+| DATA | "what is my monthly rent" | SQL on the tenant's private database, answer phrased from the rows |
+| POLICY | "can I keep a dog" | Search approved documents for this tenant's building only, answer with citations |
+| LEGAL_ESCALATION | "can they evict me" | Never answered. Fixed hand-off message, question added to the staff `/escalations` queue |
+| OFF_TOPIC | "what is the weather" | Politely declined |
+
+A separate `/manager_ask` endpoint lets a building manager ask building-level questions (e.g. open tickets) against a database containing only that one building's units and tickets - no tenant names or payments.
+
+### The isolation guarantee
+
+The client's first requirement: *a tenant must never, ever see another tenant's data.*
+
+I did not solve this with a `WHERE tenant_id = ?` that the model has to remember to write. For every DATA question, `app/tamam_isolation.py` builds a **fresh in-memory SQLite database containing only that tenant's rows** - their tenant row, their unit, their building, their unit's tickets, their payments. The model's SQL runs against that. A query with no WHERE clause at all, or a query that names another tenant, still cannot return someone else's data, because it is not in the database. The guarantee is structural, not behavioural.
+
+Defence in depth on top of that:
+- `app/tamam_sql_pipeline.py` rejects any query that doesn't start with `SELECT` or contains a write/DDL keyword (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ATTACH`, `PRAGMA`...), with at most 2 repair attempts before giving up safely.
+- The main `tamam.db` is only ever opened read-only (`mode=ro`).
+- The answer-phrasing prompt tells the model it only sees one tenant's data and must never claim a comparison ("highest of all tenants") - added after a real Day 2 bug where it did exactly that.
+
+How it is proven:
+- `tamam_isolation_check.py` (no AI) builds the private database for **every** tenant and runs unfiltered "show me everything" queries against each one. Result: `evidence/isolation_check.json`.
+- The harness attacks it through the real assistant: another tenant by name, by unit number, from a different building, and with an "ignore your previous instructions" message. Any appearance of the other tenant's real rent fails the test.
+
+### The document verification workflow (and the handbook/addendum conflict)
+
+Reused and adapted from tasks 13/14 (`app/tamam_verification_graph.py`, LangGraph with `interrupt()`):
+
+1. A manager uploads a document to `/upload` as `master` (applies to all buildings) or `addendum` (one `building_id`).
+2. The graph screens it for prompt-injection patterns, runs the contradiction detector against already-approved documents, then **pauses** at human review. The document is `pending`; tenants cannot see it.
+3. The Operations Director approves (`/documents/{id}/approve`) or rejects with a required reason (`/documents/{id}/reject`). Only `verified` documents are searchable.
+
+The conflict: the Marina Heights addendum says 60 days notice and no dogs at all; the handbook says 90 days notice and dogs with written approval. Resolution rule, enforced in code in the POLICY route:
+- A tenant only ever searches `verified` documents that are either `master` or an addendum **for their own building** (`get_tenant_building_id`).
+- Every retrieved chunk is labelled with its source before the model sees it ("Marina Heights building addendum - where it differs from the Tenant Handbook, THIS rule applies" / "Tenant Handbook - applies unless a building addendum says otherwise"), and the model is told which building the tenant lives in. Precedence is stated by the code, not left for the model to infer.
+
+Proven both ways on Day 2: while the addendum was pending, a Marina Heights tenant got the handbook dog rule; after Layla approved it, the same question flipped to the addendum rule. On Day 3 I added the other direction - a **Deira Court** tenant (tenant 16) must still get the handbook's 90 days and dog-with-approval rule, and fails the test if "Marina Heights" or the 60-day rule appears.
+
+### Routing decisions
+
+- **Router is its own LLM call**, not merged into the rewrite (lesson from task 15: a combined call can bend the question to fit its own routing).
+- **LEGAL_ESCALATION is the safe default.** The prompt says: when in doubt between POLICY and LEGAL, choose LEGAL - over-escalating a policy question costs a human a minute; a bot answering a legal question is the most consequential failure in this system. Any unparseable router output also falls back to LEGAL_ESCALATION.
+- **Legal questions never reach a model that writes an answer.** The reply is a fixed message, so there is nothing to hallucinate.
+- **"No data" and "off-topic" stay different refusals** (from task 15): one means "legitimate question, no record", the other "not something I answer".
+- The POLICY similarity threshold is `LC_SIMILARITY_THRESHOLD = 0.06`, tuned on Day 2 for Tamam's short documents. At the old value, real policy questions ("how much notice do I need to give") were refused - see the baseline below.
+
+### Day 3 changes (found during verification, not refactoring)
+
+- **Wrong currency.** DATA answers said "$9,000" - Tamam is in Dubai and all amounts are AED. The phrasing prompts (tenant and manager) now require "AED". The old harness had a `"$"` expected keyword that was passing the wrong answer; it now expects "AED" and fails on "$".
+- **Addendum precedence was implicit.** Until Day 3 the model received bare chunks with no source, so "addendum beats handbook" only worked because the addendum's own text says so - and answers hedged ("if your unit is in Marina Heights..."). The POLICY route in `main_tamam.py` now labels each chunk with its source and precedence and names the tenant's building. Kept inside `main_tamam.py` so the shared `answering_lc.py` used by earlier tasks is unchanged.
+- **Logging bug.** In the POLICY route, `log_event` sat inside the citation loop with outcome `"escalated"`, so every answered policy question was logged 2-3 times as an escalation (24 false entries in the Day 2 log). Now one `"answered"` event per question.
+- **The "passed it to our team" promise.** Before, a legal question only produced a log line nobody was shown. Added `GET /escalations`, the staff list of legal questions waiting for a follow-up (must sit behind staff login).
+- **Harness extended, not replaced.** All 13 Day 2 cases kept. Added: `forbidden_keywords` (fail if a wrong fact or a leak appears), an `isolation` test type, per-route accuracy and cost, and `--runs N`. 7 new cases: Deira Court tenant for notice/pets (addendum must NOT apply), neighbour by unit number, cross-building by name, injection-style request, and two more legal edge cases (deposit/court, eviction after complaining). 20 cases total.
+- **Runtime files untracked.** `tamam_events.jsonl`, `tamam_memory.db` and SQLite `-shm`/`-wal` files are regenerated on every run and are now in `.gitignore`.
+
+### Evidence
+
+| File | For | What it is |
+|---|---|---|
+| `evidence/ACCURACY_REPORT.md` | The board | Accuracy per route and per question, how it was graded, failures in full, honest limits |
+| `evidence/COST_REPORT.md` | Finance director | Real cost per question by route, 400/500/600 per month, worst case |
+| `evidence/tamam_eval_summary_*.json` + `_runN.json` | Anyone checking | Raw harness output the reports are generated from |
+| `evidence/isolation_check.json` | Security | All tenants x unfiltered queries, no AI |
+| `evidence/baseline_before_threshold_fix.json` | History | Day 2 run before the threshold fix (62.5% answer accuracy) - the harness catching a real problem |
+| `evidence/day2_final_run_20260922_141641.json` | History | Day 2 final 13-case run (100/100/100) |
+| `LAYLA_RESPONSE.md` | Layla | Plain-language summary for the client |
+
+Reproduce everything:
+
+```
+uvicorn app.main_tamam:app --port 8003      # terminal 1
+python tamam_isolation_check.py             # terminal 2 - no AI, free
+python tamam_eval.py --runs 3               # ~60 questions, a few cents
+python tamam_report.py                      # rebuilds both reports from the newest run
+```
+
+The reports contain no hand-typed numbers; `tamam_report.py` reads everything from the harness JSON and the prices in `app/config.py`.
+
+### What was deliberately not built
+
+- **"Never say I don't know."** An assistant that must always answer will invent rent figures and rules. Refusing when there is no record or no approved document is what makes the other answers trustworthy.
+- **Reading the WhatsApp groups.** Unverified chat messages would become "policy" with no approval step - exactly what the verification workflow exists to prevent - plus consent and privacy problems for every tenant in those groups.
+- **Automated payment chasing.** Late-payment detection exists (a tenant can ask "was any of my rent paid late"), but sending reminders or demands is an action with legal and relationship consequences; it should be a human decision, possibly supported by a report later.
+
+### Known limitations
+
+- `tenant_id` is trusted from the portal session. `/ask`, `/history` and `/escalations` must sit behind the portal / staff authentication - the API itself does not authenticate.
+- The manager database includes each unit's `monthly_rent` (not tenant names or payments). Fine for building-level questions, but worth reviewing with Layla.
+- The approved Marina Heights addendum bans dogs "including registered assistance animals". The assistant repeats what was approved; this rule should get a legal review.
+- The evaluation is 20 focused questions repeated 3 times, not a survey of real tenant traffic. Monthly review of real conversations is recommended for the first three months.

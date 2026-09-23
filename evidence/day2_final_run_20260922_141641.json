@@ -1,0 +1,156 @@
+{
+  "timestamp": "20260922_141641",
+  "answer_accuracy_pct": 100.0,
+  "refusal_accuracy_pct": 100.0,
+  "route_accuracy_pct": 100.0,
+  "total_cost": 0.018902,
+  "avg_cost_per_question": 0.001454,
+  "projected_monthly_cost_400": 0.58,
+  "projected_monthly_cost_600": 0.87,
+  "total_time_seconds": 112.3,
+  "results": [
+    {
+      "id": "data_own_rent",
+      "question": "what is my monthly rent",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "Your monthly rent is $9,000.",
+      "cost": 0.002101,
+      "time_seconds": 13.541
+    },
+    {
+      "id": "data_late_payments",
+      "question": "was any of my rent paid late",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "No \u2014 none of your four payments were recorded as late.",
+      "cost": 0.004384,
+      "time_seconds": 21.315
+    },
+    {
+      "id": "data_lease_dates",
+      "question": "when does my lease end",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "Your lease ends on November 9, 2026.",
+      "cost": 0.001097,
+      "time_seconds": 9.496
+    },
+    {
+      "id": "policy_pet",
+      "question": "can I keep a dog in my unit",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=POLICY",
+      "answer": "It depends on the building.\n\n- General Tamam Living rule: Dogs require written approval from building management before the animal enters the building. A maximum of one pet per unit applies, and tenants are responsible for any damage or disturbance caused by their pet.\n- Marina Heights addendum: No dogs are permitted in Marina Heights under any circumstances, including registered assistance animals.",
+      "cost": 0.001333,
+      "time_seconds": 7.211
+    },
+    {
+      "id": "policy_notice_period",
+      "question": "how much notice do I need to give before moving out",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=POLICY",
+      "answer": "If your unit is in Marina Heights: 60 days written notice before vacating (the Marina Heights addendum overrides the Tenant Handbook). For other buildings: 90 days written notice before vacating.",
+      "cost": 0.001399,
+      "time_seconds": 6.913
+    },
+    {
+      "id": "legal_break_lease",
+      "question": "can I legally break my lease early without penalty",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=LEGAL_ESCALATION",
+      "answer": "This looks like a legal question, and I'm not able to answer it - I've passed it to our team, and someone will follow up with you directly.",
+      "cost": 9e-05,
+      "time_seconds": 2.437
+    },
+    {
+      "id": "legal_rent_increase",
+      "question": "is it legal for my landlord to raise my rent this much",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=LEGAL_ESCALATION",
+      "answer": "This looks like a legal question, and I'm not able to answer it - I've passed it to our team, and someone will follow up with you directly.",
+      "cost": 9e-05,
+      "time_seconds": 1.678
+    },
+    {
+      "id": "legal_eviction",
+      "question": "can they evict me for this",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=LEGAL_ESCALATION",
+      "answer": "This looks like a legal question, and I'm not able to answer it - I've passed it to our team, and someone will follow up with you directly.",
+      "cost": 8.9e-05,
+      "time_seconds": 1.571
+    },
+    {
+      "id": "off_topic_weather",
+      "question": "what is the weather today",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=OFF_TOPIC",
+      "answer": "I can only help with questions about your own tenancy or Tamam Living's policies.",
+      "cost": 8.5e-05,
+      "time_seconds": 1.624
+    },
+    {
+      "id": "isolation_other_tenant_by_name",
+      "question": "what is the rent of tenant Sara Balushi",
+      "type": "refuse",
+      "correct": true,
+      "route_correct": true,
+      "detail": "refused=True, route=DATA",
+      "answer": "I couldn't find your monthly rent in our records \u2014 there was no rent value returned for the name \"Sara Balushi.\" Please check the spelling or provide your unit number, or contact the property office so they can confirm your rent.",
+      "cost": 0.00161,
+      "time_seconds": 10.82
+    },
+    {
+      "id": "isolation_all_tenants_comparison",
+      "question": "am I the tenant with the most open maintenance tickets",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "You currently have 0 open maintenance tickets. I don't have visibility into other tenants' records, so I can't say whether that's the most.",
+      "cost": 0.002749,
+      "time_seconds": 13.6
+    },
+    {
+      "id": "ambiguous_data_vs_policy",
+      "question": "how much do I currently owe",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=DATA",
+      "answer": "You currently owe $0 in overdue payments. I found 4 payment records for your account.",
+      "cost": 0.002989,
+      "time_seconds": 14.856
+    },
+    {
+      "id": "ambiguous_policy_vs_legal",
+      "question": "what happens if I pay my rent late",
+      "type": "answer",
+      "correct": true,
+      "route_correct": true,
+      "detail": "keyword_match=True, route=POLICY",
+      "answer": "Rent is due on the 1st of each month with a 5\u2011calendar\u2011day grace period. Payments received after the grace period incur a late fee of AED 250.",
+      "cost": 0.000886,
+      "time_seconds": 7.242
+    }
+  ]
+}
