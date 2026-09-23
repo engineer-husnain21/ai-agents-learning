@@ -33,6 +33,28 @@ We tested this in both directions. Before you approved the addendum, Marina Heig
 
 **One point for your attention:** the approved addendum bans dogs "including registered assistance animals". The assistant will repeat this to tenants because you approved it. We recommend asking your legal adviser whether this wording should stand.
 
+
+## The contradiction in your request — and the call I made
+
+You said the thing that would end this is a tenant seeing another tenant's business. You also said your building managers want **tenants** to see how their building is doing overall — open maintenance jobs and so on — and you left that one with me.
+
+Those two can't both be fully true, so here's what I decided: **building-wide statistics are available to managers, not to tenants.** A manager can ask how many maintenance jobs are open in their building and get a real answer. A tenant asking the same thing only ever gets their own tickets.
+
+My reasoning: "how is my building doing" sounds harmless, but it's a door. Once a tenant can see building-level numbers, the next question is which unit, and then whose. Your #1 rule doesn't survive that, and you were clear which of the two mattered more. If you decide later that a limited, carefully-shaped version of this should reach tenants (say, a count with no unit numbers attached), that's a deliberate decision to make together — not something I'd quietly enable now.
+
+Also worth noting: the manager view I built deliberately excludes tenant names and payment amounts. A manager sees maintenance activity for their building, not anyone's personal or financial details.
+
+## Managers uploading documents — what you asked for vs. what I built
+
+You said you'd like managers to add their own building documents without going through you every time. I've built most of that, but not all of it, and I want to be upfront about the difference.
+
+What works: a manager uploads their document themselves, any time, without waiting for you. The system immediately checks it against approved policy and shows exactly where it conflicts — for the Marina Heights draft, it found four conflicts on its own.
+
+What I did **not** do: let that document go live without anyone approving it. In your own words, managers aren't policy owners, and a manager's document shouldn't silently override the handbook — but "no review at all" is exactly what silent override looks like. So the upload is self-service; the approval isn't.
+
+What this costs you: a few minutes per document, not a full read-through. The system does the reading and tells the approver precisely what to look at. And it doesn't have to be you — this can be delegated to anyone you trust to own policy. The point is that a named person signs off, and we have a record of who and when.
+
+
 ## What we deliberately did not build, and why
 
 **"It should never say I don't know."** We understand the wish for the assistant to always be helpful. But an assistant that must always answer will, sooner or later, make up a rent figure or a rule. Once one tenant is given a wrong number with confidence, every other answer becomes doubtful. When there is no record or no approved document, the assistant says so and points the tenant to your team. That honesty is what makes the rest of its answers trustworthy.
