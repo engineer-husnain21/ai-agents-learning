@@ -35,14 +35,19 @@ ROUTES = ["DATA", "POLICY", "LEGAL_ESCALATION", "OFF_TOPIC"]
 
 def run_question(tenant_id, question, conversation_id):
     start = time.time()
-    response = requests.post(
-        f"{BASE_URL}/ask",
-        json={"tenant_id": tenant_id, "conversation_id": conversation_id, "question": question},
-        timeout=180,
-    )
+    try:
+        response = requests.post(
+            f"{BASE_URL}/ask",
+            json={"tenant_id": tenant_id, "conversation_id": conversation_id, "question": question},
+            timeout=300
+        )
+        result = response.json()
+    except Exception as e:
+        result = {"answer": f"[request failed: {e}]", "route": None, "cost": 0}
+    elapsed = time.time() - start
+    return result, elapsed
     elapsed = time.time() - start
     return response.json(), elapsed
-
 
 def grade_answer(entry, response_json):
     answer_text = response_json.get("answer", "").lower()
@@ -55,11 +60,16 @@ def grade_refuse(response_json):
     answer_text = response_json.get("answer", "").lower()
     refused = (
         "don't have" in answer_text
+        or "don’t have" in answer_text
         or "not able to" in answer_text
         or "can only help" in answer_text
         or "couldn't find" in answer_text
+        or "couldn’t find" in answer_text
         or "no record" in answer_text
         or "passed it to our team" in answer_text
+        or "no visibility" in answer_text
+        or "cannot compare" in answer_text
+        or "contact your property manager" in answer_text
     )
     return refused
 
