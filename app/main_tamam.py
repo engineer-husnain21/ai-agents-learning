@@ -18,6 +18,7 @@ model — a hard rule, not a preference (see tamam_router.py).
 Run with: uvicorn app.main_tamam:app --reload --port 8003
 """
 
+import json
 import sqlite3
 import uuid
 from fastapi import FastAPI, UploadFile, Form
@@ -32,7 +33,7 @@ from app.content_hash import compute_content_hash
 from app.config import HISTORY_LENGTH, CHAT_INPUT_PRICE_PER_1M, CHAT_OUTPUT_PRICE_PER_1M, LC_SIMILARITY_THRESHOLD
 
 from app.tamam_memory import init_db as init_tamam_memory_db, save_turn, get_history
-from app.tamam_logging import log_event, log_span, Timer
+from app.tamam_logging import log_event, log_span, Timer, LOG_PATH as TAMAM_LOG_PATH
 from app.tamam_isolation import build_tenant_scoped_db, build_manager_scoped_db, MAIN_DB_PATH
 from app.tamam_router import classify_route
 from app.tamam_sql_pipeline import generate_and_run_sql, TENANT_SCHEMA, BUILDING_SCHEMA
@@ -141,6 +142,13 @@ def get_tenant_building_id(tenant_id):
     return row[0] if row else None
 
 
+def get_building_name(building_id):
+    conn = sqlite3.connect(f"file:{MAIN_DB_PATH}?mode=ro", uri=True)
+    row = conn.execute("SELECT building_name FROM buildings WHERE building_id = ?", (building_id,)).fetchone()
+    conn.close()
+    return row[0] if row else "your building"
+
+
 # ---------- Tenant-facing ask ----------
 
 class TenantAskRequest(BaseModel):
@@ -215,6 +223,7 @@ Columns: {sql_result['columns']}
 Rows: {sql_result['rows']}
 
 Answer in one or two plain, friendly sentences, using ONLY these results. Speak directly to the tenant ("you", "your").
+CURRENCY: every money amount in these results is in UAE dirhams. Always write amounts as "AED 9,000" - never use "$" or "dollars".
 IMPORTANT: these results are ONLY this one tenant's own data - you have no visibility into any other tenant's records. NEVER claim a comparison to other tenants (e.g. "highest among all tenants," "the only one with this"), even if the query's row count or matched_rows value seems to suggest it. If the question asked for a comparison to others, state only this tenant's own value and say you don't have visibility into other tenants' data to compare."""
             response = chat_model.invoke(phrase_prompt)
             phrase_cost = (response.usage_metadata["input_tokens"] / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
@@ -254,7 +263,26 @@ IMPORTANT: these results are ONLY this one tenant's own data - you have no visib
                       round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
             return {"route": route, "gate_score": gate_score, "answer": answer_text, "citations": [], "cost": round(total_cost, 6)}
 
-        answer_text, chat_cost = generate_answer_lc(rewritten_question, top_chunks, history, request_id=request_id, step="answer")
+        # Day 3 fix: the model used to receive bare chunks with no idea which
+        # document each came from, so "addendum overrides handbook" only worked
+        # because the addendum's own text happens to say so. Now every chunk is
+        # labelled with its source, precedence is stated, and the tenant's
+        # building is named - enforced here, not left to the model to infer.
+        building_name = get_building_name(building_id)
+        docs_by_id = {d["doc_id"]: d for d in all_docs}
+        labelled_chunks = []
+        for c in top_chunks:
+            doc = docs_by_id.get(c["doc_id"])
+            if doc and doc["scope"] == "addendum":
+                source = (f"{building_name} building addendum - where it differs from the Tenant Handbook, "
+                          f"THIS rule applies to {building_name} tenants")
+            else:
+                source = "Tamam Living Tenant Handbook - applies to all buildings unless a building addendum says otherwise"
+            labelled_chunks.append({**c, "text": f"[Source: {source}]\n{c['text']}"})
+        answer_question = (f"{rewritten_question}\n(The tenant asking lives in {building_name}. "
+                           f"Answer directly for {building_name}; do not describe rules for other buildings.)")
+
+        answer_text, chat_cost = generate_answer_lc(answer_question, labelled_chunks, history, request_id=request_id, step="answer")
         total_cost = rewrite_cost + route_cost + chat_cost
         save_turn(session_key, request.question, answer_text)
 
@@ -267,8 +295,11 @@ IMPORTANT: these results are ONLY this one tenant's own data - you have no visib
             "chunk_id": c["chunk_id"]
         })
 
-        log_event(session_key, route, request.question, "escalated", llm_calls,
-                    round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
+    # Day 3 fix: this used to sit inside the citation loop with outcome
+    # "escalated", so every answered policy question was logged N times
+    # as an escalation. One answered event per question now.
+    log_event(session_key, route, request.question, "answered", llm_calls + 1,
+              round(total_cost, 6), None, tenant_id=request.tenant_id, request_id=request_id)
 
     return {
         "route": route, "gate_score": gate_score, "answer": answer_text,
@@ -306,7 +337,8 @@ SQL: {sql_result['query']}
 Columns: {sql_result['columns']}
 Rows: {sql_result['rows']}
 
-Answer in one or two plain sentences using ONLY these results."""
+Answer in one or two plain sentences using ONLY these results.
+CURRENCY: any money amount is in UAE dirhams - write it as "AED 9,000", never "$"."""
     response = chat_model.invoke(phrase_prompt)
     cost += (response.usage_metadata["input_tokens"] / 1_000_000) * CHAT_INPUT_PRICE_PER_1M
     cost += (response.usage_metadata["output_tokens"] / 1_000_000) * CHAT_OUTPUT_PRICE_PER_1M
@@ -315,6 +347,38 @@ Answer in one or two plain sentences using ONLY these results."""
               round(cost, 6), None, request_id=request_id)
 
     return {"answer": response.content.strip(), "sql_query": sql_result["query"], "cost": round(cost, 6)}
+
+
+# ---------- Staff-facing escalation queue ----------
+# The legal message tells the tenant "I've passed it to our team". Before
+# Day 3 that was only a log line nobody was shown. This endpoint is the
+# team's list of legal questions waiting for a human follow-up.
+# Staff-only: it must sit behind Tamam's staff login, never the tenant portal.
+
+@app.get("/escalations")
+async def escalations():
+    items = []
+    try:
+        with open(TAMAM_LOG_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("route") == "LEGAL_ESCALATION" and event.get("outcome") == "escalated":
+                    items.append({
+                        "timestamp": event.get("timestamp"),
+                        "tenant_id": event.get("tenant_id"),
+                        "question": event.get("question"),
+                        "request_id": event.get("request_id"),
+                    })
+    except FileNotFoundError:
+        pass
+    items.reverse()  # newest first
+    return {"count": len(items), "escalations": items}
 
 
 @app.get("/history/{tenant_id}/{conversation_id}")

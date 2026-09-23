@@ -14,3 +14,10 @@ ask.json
 approve2.json
 approve3.json
 replay.json
+
+# Tamam runtime artifacts (regenerated on every run - Day 3)
+tamam_events.jsonl
+tamam_spans.jsonl
+tamam_memory.db
+*.db-shm
+*.db-wal
