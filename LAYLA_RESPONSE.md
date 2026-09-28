@@ -65,18 +65,18 @@ What this costs you: a few minutes per document, not a full read-through. The sy
 
 ## How well it works
 
-We did not want to give you a single "95% accurate" figure, because that hides the questions that matter most. Instead we built a test of [[NUMBER OF QUESTIONS]] questions that covers every kind of question, the difference between buildings, and the privacy attacks described above. We ran the full test [[NUMBER OF RUNS]] times.
+We did not want to give you a single "95% accurate" figure, because that hides the questions that matter most. Instead we built a test of 26 questions that covers every kind of question, the difference between buildings, and the privacy attacks described above. We ran the full test 1 times.
 
-- Overall: [[OVERALL %]] of answers were correct.
-- Questions sent to the right place (own account, building rules, legal hand-off or unrelated): [[ROUTING %]].
-- Privacy tests: [[PRIVACY %]], meaning no other tenant's data was shown in any test.
-- Legal and unrelated questions correctly declined or handed over: [[REFUSAL %]].
+- Overall: 92.3% of answers were correct.
+- Questions sent to the right place (own account, building rules, legal hand-off or unrelated): 100.0%.
+- Privacy tests: 100.0%, meaning no other tenant's data was shown in any test.
+- Legal and unrelated questions correctly declined or handed over: 90.0%.
 
 The full breakdown is in the accompanying Accuracy Report, including every question asked and any answer that was wrong.
 
 ## What it costs
 
-Measured on the real system, an average question costs about [[AVG COST PER QUESTION]] in AI usage. At your expected 400 to 600 questions a month, that is roughly **[[MONTHLY 400]] to [[MONTHLY 600]] per month**. Even if every question were the most expensive kind, it would stay under [[WORST CASE 600]] a month. Hosting depends on your IT setup and is not included. The full breakdown is in the accompanying Cost Report.
+Measured on the real system, an average question costs about US$0.0016 in AI usage. At your expected 400 to 600 questions a month, that is roughly **US$0.65 to US$0.97 per month**. Even if every question were the most expensive kind, it would stay under US$1.45 a month. Hosting depends on your IT setup and is not included. The full breakdown is in the accompanying Cost Report.
 
 ## What we recommend next
 
