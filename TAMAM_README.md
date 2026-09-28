@@ -25,9 +25,18 @@ Manager uploads a document → it stays PENDING until the Operations Director ap
 
 ## Evidence
 
-Full eval harness (`tamam_eval.py`, 13 test cases): **100% answer accuracy, 100% refusal accuracy, 100% route accuracy** — covering all four routes, isolation attempts, ambiguous data/policy/legal cases.
+## Evidence
 
-**Cost:** ~$0.0015 per question. At the client's stated 400–600 questions/month: **$0.58–$0.87/month** in AI costs.
+Full eval harness (`tamam_eval.py`, 26 test cases across all 3 buildings and multiple tenants):
+- **Isolation: 100%** — cross-building requests by name, same-building neighbour requests, and comparison claims, tested as several different tenants
+- **Routing: 100%** — every question reached the correct route
+- **Overall: 92.3%**, refusal accuracy 90%
+
+Two cases still fail. Both are the system refusing safely but phrasing it in a way the grader doesn't match — documented rather than tuned around until the number looked clean.
+
+**Cost:** ~$0.0016 per question. At the client's stated 400–600 questions/month: **$0.65–$0.97/month**.
+
+Generated reports: `evidence/ACCURACY_REPORT.md` and `evidence/COST_REPORT.md`.
 
 ## Deliberately not built (with reasons in RESPONSE_TO_LAYLA.md)
 - "Never say I don't know" — rejected; it's what caused the previous vendor's confident-wrong-answer failure.
